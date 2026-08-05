@@ -1,47 +1,127 @@
 import React, { useState } from 'react';
-import { Smartphone, ShieldCheck, UserPlus, LogIn, Lock, ArrowRight, Info } from 'lucide-react';
+import { Smartphone, Lock, User, Mail, ArrowRight, UserPlus, LogIn, CheckCircle } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
-export default function AuthScreen({ onLogin, isSupabaseActive }) {
-  const [isRegister, setIsRegister] = useState(false);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [isAdminLogin, setIsAdminLogin] = useState(false);
+export default function AuthScreen({ onLoginSuccess }) {
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  
+  // Form Cadastro
+  const [regVulgo, setRegVulgo] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
 
-  const handleSubmit = (e) => {
+  // Form Login
+  const [loginVulgo, setLoginVulgo] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleRegister = async (e) => {
     e.preventDefault();
-    if (isAdminLogin) {
-      if (adminPassword === 'admin123' || adminPassword === 'admin') {
-        onLogin({ id: 'admin_1', name: 'Administrador', role: 'admin', status: 'aprovado' });
-      } else {
-        alert('Senha de Administrador incorreta! (Senha padrão de demonstração: admin123)');
-      }
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (regPassword !== regPasswordConfirm) {
+      setErrorMessage('As senhas não conferem!');
       return;
     }
 
-    if (!name) return;
-
-    if (isRegister) {
-      // Registrar novo usuário -> Fica como PENDENTE (Sala de Espera)
-      const newUser = {
-        id: 'user_' + Date.now(),
-        name,
-        phone,
-        role: 'user',
-        status: 'pendente'
-      };
-      onLogin(newUser);
-    } else {
-      // Login Simulado ou busca
-      const user = {
-        id: 'user_existing',
-        name,
-        phone,
-        role: 'user',
-        status: 'pendente' // Padrão pendente se novo
-      };
-      onLogin(user);
+    if (regPassword.length < 4) {
+      setErrorMessage('A senha deve ter pelo menos 4 caracteres.');
+      return;
     }
+
+    setLoading(true);
+
+    const newUser = {
+      vulgo: regVulgo.trim(),
+      email: regEmail.trim().toLowerCase(),
+      password: regPassword,
+      role: regVulgo.toLowerCase() === 'admin' ? 'admin' : 'user',
+      status: regVulgo.toLowerCase() === 'admin' ? 'aprovado' : 'pendente'
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase.from('profiles').insert([newUser]).select();
+        if (error) {
+          if (error.message.includes('unique') || error.code === '23505') {
+            setErrorMessage('Este Vulgo ou Email já está cadastrado!');
+          } else {
+            setErrorMessage(error.message);
+          }
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        setErrorMessage('Erro ao conectar ao banco.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    setLoading(false);
+    setSuccessMessage('Cadastro realizado com sucesso! Faça login para continuar.');
+    setRegVulgo('');
+    setRegEmail('');
+    setRegPassword('');
+    setRegPasswordConfirm('');
+    setMode('login');
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setLoading(true);
+
+    const vulgoInput = loginVulgo.trim();
+    const passInput = loginPassword;
+
+    // Login ADM de teste rápido
+    if (vulgoInput.toLowerCase() === 'admin' && passInput === 'admin123') {
+      onLoginSuccess({
+        id: 'admin_1',
+        vulgo: 'ADMIN',
+        role: 'admin',
+        status: 'aprovado'
+      });
+      return;
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('vulgo', vulgoInput)
+          .eq('password', passInput)
+          .single();
+
+        if (error || !data) {
+          setErrorMessage('Vulgo ou Senha incorretos!');
+          setLoading(false);
+          return;
+        }
+
+        onLoginSuccess(data);
+        return;
+      } catch (err) {
+        console.log(err);
+      }
+    }
+
+    // Fallback Mock local para teste rápido sem Supabase
+    onLoginSuccess({
+      id: 'usr_' + Date.now(),
+      vulgo: vulgoInput,
+      email: vulgoInput + '@app.com',
+      role: vulgoInput.toLowerCase() === 'admin' ? 'admin' : 'user',
+      status: vulgoInput.toLowerCase() === 'admin' ? 'aprovado' : 'pendente'
+    });
   };
 
   return (
@@ -52,80 +132,132 @@ export default function AuthScreen({ onLogin, isSupabaseActive }) {
             <Smartphone size={40} color="#ff3b30" />
           </div>
           <h1>App de Alerta Mobile</h1>
-          <p>Sistema de Alerta em Tempo Real & Sala de Espera</p>
+          <p>Comunidade & Alertas de Emergência</p>
         </div>
 
-        {/* Toggle Modo ADM / Usuário */}
+        {/* Abas Alternadoras: Login / Cadastro */}
         <div className="auth-mode-toggle">
           <button 
-            className={`mode-btn ${!isAdminLogin ? 'active' : ''}`}
-            onClick={() => setIsAdminLogin(false)}
+            className={`mode-btn ${mode === 'login' ? 'active' : ''}`}
+            onClick={() => { setMode('login'); setErrorMessage(''); }}
           >
-            <UserPlus size={16} /> Entrar no Celular
+            <LogIn size={16} /> Entrar (Login)
           </button>
           <button 
-            className={`mode-btn ${isAdminLogin ? 'active' : ''}`}
-            onClick={() => setIsAdminLogin(true)}
+            className={`mode-btn ${mode === 'register' ? 'active' : ''}`}
+            onClick={() => { setMode('register'); setErrorMessage(''); }}
           >
-            <Lock size={16} /> Sou Administrador (ADM)
+            <UserPlus size={16} /> Cadastrar
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          {isAdminLogin ? (
+        {errorMessage && <div className="error-banner">{errorMessage}</div>}
+        {successMessage && <div className="success-banner"><CheckCircle size={18} /> {successMessage}</div>}
+
+        {mode === 'login' ? (
+          /* FORMULÁRIO DE LOGIN (Vulgo e Senha) */
+          <form onSubmit={handleLogin} className="auth-form">
             <div className="form-group">
-              <label>Senha do Administrador</label>
-              <input 
-                type="password" 
-                placeholder="Digite a senha ADM (admin123)"
-                value={adminPassword}
-                onChange={e => setAdminPassword(e.target.value)}
-                className="input-field"
-                required
-              />
-              <p className="field-hint">Senha de demonstração: <strong>admin123</strong></p>
-            </div>
-          ) : (
-            <>
-              <div className="form-group">
-                <label>Seu Nome Completo</label>
+              <label>Vulgo (Nome de Usuário)</label>
+              <div className="input-icon-wrapper">
+                <User size={18} className="input-icon" />
                 <input 
                   type="text" 
-                  placeholder="Ex: Carlos Silva"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  className="input-field"
+                  placeholder="Seu vulgo registrado"
+                  value={loginVulgo}
+                  onChange={e => setLoginVulgo(e.target.value)}
+                  className="input-field with-icon"
                   required
                 />
               </div>
+            </div>
 
-              <div className="form-group">
-                <label>Celular / WhatsApp (Opcional)</label>
+            <div className="form-group">
+              <label>Senha</label>
+              <div className="input-icon-wrapper">
+                <Lock size={18} className="input-icon" />
                 <input 
-                  type="tel" 
-                  placeholder="(11) 99999-9999"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  className="input-field"
+                  type="password" 
+                  placeholder="Sua senha"
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  className="input-field with-icon"
+                  required
                 />
               </div>
-            </>
-          )}
+            </div>
 
-          <button type="submit" className="btn-primary auth-submit-btn">
-            {isAdminLogin ? (
-              <>Acessar Painel ADM <ArrowRight size={18} /></>
-            ) : (
-              <>Entrar no Aplicativo <ArrowRight size={18} /></>
-            )}
-          </button>
-        </form>
+            <button type="submit" className="btn-primary auth-submit-btn" disabled={loading}>
+              {loading ? 'ENTRANDO...' : <>ENTRAR <ArrowRight size={18} /></>}
+            </button>
+          </form>
+        ) : (
+          /* FORMULÁRIO DE CADASTRO (Vulgo, Email, Senha, Confirmação) */
+          <form onSubmit={handleRegister} className="auth-form">
+            <div className="form-group">
+              <label>Vulgo (Como quer ser chamado)</label>
+              <div className="input-icon-wrapper">
+                <User size={18} className="input-icon" />
+                <input 
+                  type="text" 
+                  placeholder="Ex: Maneu, Tubarão, etc."
+                  value={regVulgo}
+                  onChange={e => setRegVulgo(e.target.value)}
+                  className="input-field with-icon"
+                  required
+                />
+              </div>
+            </div>
 
-        {!isAdminLogin && (
-          <div className="auth-info-box">
-            <Info size={18} color="#007aff" />
-            <p>Novos usuários entram automaticamente na <strong>Sala de Espera</strong> até que o Administrador libere o acesso.</p>
-          </div>
+            <div className="form-group">
+              <label>Email</label>
+              <div className="input-icon-wrapper">
+                <Mail size={18} className="input-icon" />
+                <input 
+                  type="email" 
+                  placeholder="seuemail@exemplo.com"
+                  value={regEmail}
+                  onChange={e => setRegEmail(e.target.value)}
+                  className="input-field with-icon"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Senha</label>
+              <div className="input-icon-wrapper">
+                <Lock size={18} className="input-icon" />
+                <input 
+                  type="password" 
+                  placeholder="Crie sua senha"
+                  value={regPassword}
+                  onChange={e => setRegPassword(e.target.value)}
+                  className="input-field with-icon"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Confirmação de Senha</label>
+              <div className="input-icon-wrapper">
+                <Lock size={18} className="input-icon" />
+                <input 
+                  type="password" 
+                  placeholder="Digite a senha novamente"
+                  value={regPasswordConfirm}
+                  onChange={e => setRegPasswordConfirm(e.target.value)}
+                  className="input-field with-icon"
+                  required
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="btn-primary auth-submit-btn" disabled={loading}>
+              {loading ? 'CADASTRANDO...' : <>FINALIZAR CADASTRO <ArrowRight size={18} /></>}
+            </button>
+          </form>
         )}
       </div>
     </div>

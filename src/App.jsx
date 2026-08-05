@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import AuthScreen from './components/AuthScreen';
 import WaitingRoom from './components/WaitingRoom';
 import AdminPanel from './components/AdminPanel';
-import UserView from './components/UserView';
+import MobileMainLayout from './components/MobileMainLayout';
 import CallAlertOverlay from './components/CallAlertOverlay';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { ShieldAlert, Database, Server, Smartphone, ExternalLink } from 'lucide-react';
+import { Database } from 'lucide-react';
 import './index.css';
 
 export default function App() {
@@ -13,19 +13,17 @@ export default function App() {
   const [activeAlert, setActiveAlert] = useState(null);
   const [alertsHistory, setAlertsHistory] = useState([]);
   
-  // Estado local simulado caso o Supabase não esteja com credenciais configuradas ainda
   const [mockUsers, setMockUsers] = useState([
-    { id: 'usr_1', name: 'João Santos', phone: '(11) 98888-1111', role: 'user', status: 'pendente' },
-    { id: 'usr_2', name: 'Maria Oliveira', phone: '(21) 97777-2222', role: 'user', status: 'aprovado' }
+    { id: 'usr_1', vulgo: 'João_Santos', role: 'user', status: 'pendente' },
+    { id: 'usr_2', vulgo: 'Maria_22', role: 'user', status: 'aprovado' }
   ]);
 
   const supabaseReady = isSupabaseConfigured();
 
-  // Listener em tempo real via Supabase (ou Event Listener para demonstração)
   useEffect(() => {
     if (!supabaseReady) return;
 
-    // Escutar novos alertas na tabela 'alerts'
+    // Escutar novos alertas na tabela 'alerts' em tempo real
     const alertsChannel = supabase
       .channel('public:alerts')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, (payload) => {
@@ -37,7 +35,7 @@ export default function App() {
       })
       .subscribe();
 
-    // Escutar mudanças de permissão na tabela 'profiles' para atualizar sala de espera
+    // Escutar atualizações de status de usuário (Aprovação pelo ADM)
     const profilesChannel = supabase
       .channel('public:profiles')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
@@ -54,15 +52,8 @@ export default function App() {
     };
   }, [currentUser, supabaseReady]);
 
-  const handleLogin = (user) => {
-    // Verificar se já existe mock com mesmo nome
-    const existing = mockUsers.find(u => u.name.toLowerCase() === user.name.toLowerCase());
-    if (existing) {
-      setCurrentUser(existing);
-    } else {
-      setCurrentUser(user);
-      setMockUsers((prev) => [...prev, user]);
-    }
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
   };
 
   const handleLogout = () => {
@@ -70,10 +61,8 @@ export default function App() {
     setActiveAlert(null);
   };
 
-  // Funções de simulação local para o painel de adm
   const handleSendMockAlert = (newAlert) => {
     setAlertsHistory((prev) => [newAlert, ...prev]);
-    // Se o usuário logado for 'aprovado', dispara o alerta estilo ligação
     if (currentUser && currentUser.status === 'aprovado' && currentUser.role !== 'admin') {
       setActiveAlert(newAlert);
     }
@@ -93,11 +82,11 @@ export default function App() {
     }
   };
 
-  const handleSimulateIncomingAlert = (urgencyType = 'critical') => {
+  const handleSimulateAlert = (urgencyType = 'critical') => {
     const simAlert = {
       id: 'sim_' + Date.now(),
-      title: urgencyType === 'critical' ? '🚨 PERIGO DE EMERGÊNCIA' : '📢 AVISO DO ADM',
-      message: 'Este é um teste do alerta em tempo real. O celular vibrou e o som estilo ligação foi ativado!',
+      title: urgencyType === 'critical' ? '🚨 ALERTA CRÍTICO DE EMERGÊNCIA' : '📢 AVISO DO ADM',
+      message: 'Este é um teste do alerta em tempo real no celular com toque estilo ligação e vibração!',
       urgency: urgencyType,
       sound: urgencyType === 'critical' ? 'siren' : 'call',
       image_url: 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=600&auto=format&fit=crop&q=60',
@@ -109,21 +98,19 @@ export default function App() {
 
   return (
     <div className="app-root">
-      {/* Banner Superior de Instruções Supabase & Vercel */}
+      {/* Banner de Demonstração */}
       {!supabaseReady && (
         <div className="dev-mode-banner">
           <div className="banner-content">
             <Database size={16} />
-            <span>
-              <strong>Modo de Demonstração Interativo Ativo:</strong> Para conectar seu próprio banco do <strong>Supabase</strong> e publicar no <strong>Vercel / GitHub</strong>, siga as variáveis de ambiente `.env`.
-            </span>
+            <span>Modo de Demonstração Local Ativo</span>
           </div>
         </div>
       )}
 
-      {/* Roteamento Principal da Aplicação */}
+      {/* Roteamento Principal */}
       {!currentUser ? (
-        <AuthScreen onLogin={handleLogin} isSupabaseActive={supabaseReady} />
+        <AuthScreen onLoginSuccess={handleLoginSuccess} />
       ) : currentUser.role === 'admin' ? (
         <AdminPanel 
           onLogout={handleLogout}
@@ -138,20 +125,21 @@ export default function App() {
       ) : currentUser.status === 'recusado' ? (
         <div className="glass-card error-card">
           <h2>Acesso Recusado</h2>
-          <p>O administrador não aprovou sua entrada no aplicativo.</p>
+          <p>O administrador recusou a sua solicitação de acesso.</p>
           <button className="btn-secondary" onClick={handleLogout}>Voltar</button>
         </div>
       ) : (
-        <UserView 
-          user={currentUser} 
+        /* Tela Principal com Menu Inferior (Início / Feed, Alertas, Chat) */
+        <MobileMainLayout 
+          user={currentUser}
           onLogout={handleLogout}
           activeAlert={activeAlert}
           alertsHistory={alertsHistory}
-          onSimulateIncomingAlert={handleSimulateIncomingAlert}
+          onSimulateAlert={handleSimulateAlert}
         />
       )}
 
-      {/* Overlay Estilo Tela de Ligação com Vibração e Som */}
+      {/* Overlay estilo chamada */}
       {activeAlert && (
         <CallAlertOverlay 
           alert={activeAlert} 
