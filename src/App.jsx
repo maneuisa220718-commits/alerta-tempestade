@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AuthScreen from './components/AuthScreen';
 import WaitingRoom from './components/WaitingRoom';
-import AdminPanel from './components/AdminPanel';
 import MobileMainLayout from './components/MobileMainLayout';
 import CallAlertOverlay from './components/CallAlertOverlay';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
@@ -13,11 +12,6 @@ export default function App() {
   const [activeAlert, setActiveAlert] = useState(null);
   const [alertsHistory, setAlertsHistory] = useState([]);
   
-  const [mockUsers, setMockUsers] = useState([
-    { id: 'usr_1', vulgo: 'João_Santos', role: 'user', status: 'pendente' },
-    { id: 'usr_2', vulgo: 'Maria_22', role: 'user', status: 'aprovado' }
-  ]);
-
   const supabaseReady = isSupabaseConfigured();
 
   useEffect(() => {
@@ -35,9 +29,9 @@ export default function App() {
       })
       .subscribe();
 
-    // Escutar atualizações de status de usuário (Aprovação pelo ADM)
+    // Escutar atualizações do perfil do usuário em tempo real
     const profilesChannel = supabase
-      .channel('public:profiles')
+      .channel('public:profiles_current')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
         const updated = payload.new;
         if (currentUser && currentUser.id === updated.id) {
@@ -61,27 +55,6 @@ export default function App() {
     setActiveAlert(null);
   };
 
-  const handleSendMockAlert = (newAlert) => {
-    setAlertsHistory((prev) => [newAlert, ...prev]);
-    if (currentUser && currentUser.status === 'aprovado' && currentUser.role !== 'admin') {
-      setActiveAlert(newAlert);
-    }
-  };
-
-  const handleApproveMockUser = (userId) => {
-    setMockUsers((prev) => prev.map(u => u.id === userId ? { ...u, status: 'aprovado' } : u));
-    if (currentUser && currentUser.id === userId) {
-      setCurrentUser((prev) => ({ ...prev, status: 'aprovado' }));
-    }
-  };
-
-  const handleRejectMockUser = (userId) => {
-    setMockUsers((prev) => prev.map(u => u.id === userId ? { ...u, status: 'recusado' } : u));
-    if (currentUser && currentUser.id === userId) {
-      setCurrentUser((prev) => ({ ...prev, status: 'recusado' }));
-    }
-  };
-
   const handleSimulateAlert = (urgencyType = 'critical') => {
     const simAlert = {
       id: 'sim_' + Date.now(),
@@ -98,7 +71,6 @@ export default function App() {
 
   return (
     <div className="app-root">
-      {/* Banner de Demonstração */}
       {!supabaseReady && (
         <div className="dev-mode-banner">
           <div className="banner-content">
@@ -108,28 +80,19 @@ export default function App() {
         </div>
       )}
 
-      {/* Roteamento Principal */}
+      {/* ROTEAMENTO UNIFICADO MOBILE (Sem o painel desktop antigo bagunçado) */}
       {!currentUser ? (
         <AuthScreen onLoginSuccess={handleLoginSuccess} />
-      ) : currentUser.role === 'admin' ? (
-        <AdminPanel 
-          onLogout={handleLogout}
-          mockUsers={mockUsers}
-          mockAlerts={alertsHistory}
-          onSendMockAlert={handleSendMockAlert}
-          onApproveMockUser={handleApproveMockUser}
-          onRejectMockUser={handleRejectMockUser}
-        />
-      ) : currentUser.status === 'pendente' ? (
+      ) : currentUser.status === 'pendente' && currentUser.role !== 'admin' ? (
         <WaitingRoom user={currentUser} onLogout={handleLogout} />
       ) : currentUser.status === 'recusado' ? (
-        <div className="glass-card error-card">
+        <div className="glass-card error-card" style={{ margin: '2rem 1rem', textCenter: 'center' }}>
           <h2>Acesso Recusado</h2>
           <p>O administrador recusou a sua solicitação de acesso.</p>
-          <button className="btn-secondary" onClick={handleLogout}>Voltar</button>
+          <button className="btn-secondary" onClick={handleLogout} style={{ marginTop: '1rem' }}>Voltar</button>
         </div>
       ) : (
-        /* Tela Principal com Menu Inferior (Início / Feed, Alertas, Chat) */
+        /* Todos os usuários aprovados e ADM entram no mesmo layout mobile organizado com menu no rodapé */
         <MobileMainLayout 
           user={currentUser}
           onLogout={handleLogout}
