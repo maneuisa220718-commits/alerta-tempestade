@@ -806,3 +806,86 @@ body {
   justify-content: center;
   gap: 0.5rem;
 }
+
+/* PWA Install Banner & Floating Button */
+.pwa-install-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 450px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 59, 48, 0.5);
+  z-index: 9990;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  animation: slideDown 0.4s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translate(-50%, -100%); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+.pwa-install-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: left;
+}
+.pwa-install-info h4 {
+  font-size: 0.9rem;
+  color: #fff;
+}
+.pwa-install-info p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.pwa-icon-box {
+  width: 42px;
+  height: 42px;
+  background: rgba(255, 59, 48, 0.15);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pwa-install-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.btn-icon-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.4rem;
+}
+
+.btn-install-floating {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  background: rgba(255, 59, 48, 0.9);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  z-index: 8500;
+  box-shadow: 0 4px 15px rgba(255, 59, 48, 0.5);
+  cursor: pointer;
+}

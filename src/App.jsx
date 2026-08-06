@@ -3,6 +3,7 @@ import AuthScreen from './components/AuthScreen';
 import WaitingRoom from './components/WaitingRoom';
 import MobileMainLayout from './components/MobileMainLayout';
 import CallAlertOverlay from './components/CallAlertOverlay';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { Database } from 'lucide-react';
 import './index.css';
@@ -17,7 +18,6 @@ export default function App() {
   useEffect(() => {
     if (!supabaseReady) return;
 
-    // Escutar novos alertas na tabela 'alerts' em tempo real
     const alertsChannel = supabase
       .channel('public:alerts')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, (payload) => {
@@ -29,7 +29,6 @@ export default function App() {
       })
       .subscribe();
 
-    // Escutar atualizações do perfil do usuário em tempo real
     const profilesChannel = supabase
       .channel('public:profiles_current')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
@@ -80,7 +79,10 @@ export default function App() {
         </div>
       )}
 
-      {/* ROTEAMENTO UNIFICADO MOBILE (Sem o painel desktop antigo bagunçado) */}
+      {/* Botão e Prompt Flutuante de Instalação PWA no Celular */}
+      <PWAInstallPrompt />
+
+      {/* ROTEAMENTO UNIFICADO MOBILE */}
       {!currentUser ? (
         <AuthScreen onLoginSuccess={handleLoginSuccess} />
       ) : currentUser.status === 'pendente' && currentUser.role !== 'admin' ? (
@@ -92,7 +94,6 @@ export default function App() {
           <button className="btn-secondary" onClick={handleLogout} style={{ marginTop: '1rem' }}>Voltar</button>
         </div>
       ) : (
-        /* Todos os usuários aprovados e ADM entram no mesmo layout mobile organizado com menu no rodapé */
         <MobileMainLayout 
           user={currentUser}
           onLogout={handleLogout}
