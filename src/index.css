@@ -807,85 +807,110 @@ body {
   gap: 0.5rem;
 }
 
-/* PWA Install Banner & Floating Button */
-.pwa-install-banner {
-  position: fixed;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 24px);
-  max-width: 450px;
-  background: rgba(15, 23, 42, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 59, 48, 0.5);
-  z-index: 9990;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  padding: 1rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-  animation: slideDown 0.4s ease;
-}
-
-@keyframes slideDown {
-  from { transform: translate(-50%, -100%); opacity: 0; }
-  to { transform: translate(-50%, 0); opacity: 1; }
-}
-
-.pwa-install-info {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  text-align: left;
-}
-.pwa-install-info h4 {
-  font-size: 0.9rem;
-  color: #fff;
-}
-.pwa-install-info p {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-.pwa-icon-box {
-  width: 42px;
-  height: 42px;
-  background: rgba(255, 59, 48, 0.15);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pwa-install-actions {
+/* PWA Install Top Bar & Modal */
+.pwa-install-top-bar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(90deg, #1e1b4b, #0f172a);
+  border-bottom: 2px solid var(--primary-red);
+  padding: 0.6rem 0.8rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  z-index: 9999;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
-.btn-icon-close {
+.pwa-bar-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+}
+.pwa-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.btn-install-now {
+  background: var(--primary-red);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  box-shadow: 0 0 12px var(--primary-red-glow);
+}
+.btn-close-bar {
   background: transparent;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0.4rem;
+  padding: 0.2rem;
 }
 
-.btn-install-floating {
+/* Modal de Instruções de Instalação */
+.pwa-modal-overlay {
   position: fixed;
-  top: 14px;
-  right: 14px;
-  background: rgba(255, 59, 48, 0.9);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  padding: 0.4rem 0.8rem;
-  font-size: 0.75rem;
-  font-weight: 800;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  z-index: 8500;
-  box-shadow: 0 4px 15px rgba(255, 59, 48, 0.5);
-  cursor: pointer;
+  justify-content: center;
+  padding: 1.2rem;
+}
+.pwa-instructions-card {
+  width: 100%;
+  max-width: 400px;
+}
+.pwa-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.pwa-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.pwa-step {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+}
+.step-num {
+  width: 28px;
+  height: 28px;
+  background: var(--primary-red);
+  color: #fff;
+  font-weight: bold;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pwa-step p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+  line-height: 1.3;
 }
