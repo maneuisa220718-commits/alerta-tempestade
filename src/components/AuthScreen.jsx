@@ -3,7 +3,7 @@ import { Smartphone, Lock, User, Mail, ArrowRight, UserPlus, LogIn, CheckCircle 
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
 export default function AuthScreen({ onLoginSuccess }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState('login');
   
   // Form Cadastro
   const [regVulgo, setRegVulgo] = useState('');
@@ -37,6 +37,7 @@ export default function AuthScreen({ onLoginSuccess }) {
     setLoading(true);
 
     const newUser = {
+      name: regVulgo.trim(), // Preenche name com o vulgo para garantir compatibilidade
       vulgo: regVulgo.trim(),
       email: regEmail.trim().toLowerCase(),
       password: regPassword,
@@ -97,7 +98,7 @@ export default function AuthScreen({ onLoginSuccess }) {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('vulgo', vulgoInput)
+          .or(`vulgo.eq.${vulgoInput},name.eq.${vulgoInput}`)
           .eq('password', passInput)
           .single();
 
@@ -155,7 +156,7 @@ export default function AuthScreen({ onLoginSuccess }) {
         {successMessage && <div className="success-banner"><CheckCircle size={18} /> {successMessage}</div>}
 
         {mode === 'login' ? (
-          /* FORMULÁRIO DE LOGIN (Vulgo e Senha) */
+          /* FORMULÁRIO DE LOGIN */
           <form onSubmit={handleLogin} className="auth-form">
             <div className="form-group">
               <label>Vulgo (Nome de Usuário)</label>
@@ -192,7 +193,7 @@ export default function AuthScreen({ onLoginSuccess }) {
             </button>
           </form>
         ) : (
-          /* FORMULÁRIO DE CADASTRO (Vulgo, Email, Senha, Confirmação) */
+          /* FORMULÁRIO DE CADASTRO */
           <form onSubmit={handleRegister} className="auth-form">
             <div className="form-group">
               <label>Vulgo (Como quer ser chamado)</label>
