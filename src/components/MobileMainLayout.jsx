@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Bell, MessageSquare, Send, Image as ImageIcon, Heart, User, LogOut, Radio, Volume2, Shield } from 'lucide-react';
+import { Home, Bell, MessageSquare, Send, Image as ImageIcon, Heart, User, LogOut, Radio, Volume2, Shield, Users, Check, X, RefreshCw } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
 export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHistory, onSimulateAlert }) {
-  const [activeTab, setActiveTab] = useState('inicio'); // 'inicio' | 'alerta' | 'chat'
+  const [activeTab, setActiveTab] = useState('inicio'); // 'inicio' | 'alerta' | 'chat' | 'admin'
+
+  // Admin Management State
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [approvedUsers, setApprovedUsers] = useState([]);
+
+  // Alert Form State (Painel ADM)
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertUrgency, setAlertUrgency] = useState('critical');
+  const [alertSound, setAlertSound] = useState('siren');
+  const [alertImageUrl, setAlertImageUrl] = useState('');
+  const [isSendingAlert, setIsSendingAlert] = useState(false);
+  const [alertSentSuccess, setAlertSentSuccess] = useState(false);
 
   // Feed State
   const [posts, setPosts] = useState([
-    { id: 'post_1', vulgo: 'ADM', content: 'Bem-vindos ao aplicativo de alertas! Fiquem atentos às notificações.', created_at: new Date().toISOString() },
-    { id: 'post_2', vulgo: 'Carlos', content: 'Qualquer ocorrência ou chuva forte aviso aqui no feed!', created_at: new Date(Date.now() - 3600000).toISOString() }
+    { id: 'post_1', vulgo: 'maneu (ADM)', content: 'Bem-vindos ao aplicativo de alertas! Fiquem atentos às notificações.', created_at: new Date().toISOString() }
   ]);
   const [newPostContent, setNewPostContent] = useState('');
   const [postImageUrl, setPostImageUrl] = useState('');
@@ -16,13 +28,17 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
 
   // Chat State
   const [messages, setMessages] = useState([
-    { id: 'msg_1', vulgo: 'ADM', text: 'Chat da comunidade liberado.', created_at: new Date().toISOString() }
+    { id: 'msg_1', vulgo: 'maneu (ADM)', text: 'Chat da comunidade liberado.', created_at: new Date().toISOString() }
   ]);
   const [newMessageText, setNewMessageText] = useState('');
 
   useEffect(() => {
     fetchPosts();
     fetchMessages();
+
+    if (user.role === 'admin') {
+      fetchUsersForAdmin();
+    }
 
     if (isSupabaseConfigured()) {
       // Listener realtime para o Feed
@@ -41,12 +57,77 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
         })
         .subscribe();
 
+      // Listener realtime para usuários (Aprovações do ADM)
+      const profilesSub = supabase
+        .channel('public:profiles_admin')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+          if (user.role === 'admin') fetchUsersForAdmin();
+        })
+        .subscribe();
+
       return () => {
         supabase.removeChannel(postsSub);
         supabase.removeChannel(messagesSub);
+        supabase.removeChannel(profilesSub);
       };
     }
-  }, []);
+  }, [user]);
+
+  const fetchUsersForAdmin = async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+      if (data) {
+        setPendingUsers(data.filter(u => u.status === 'pendente'));
+        setApprovedUsers(data.filter(u => u.status === 'aprovado'));
+      }
+    } catch (e) {}
+  };
+
+  const handleApproveUser = async (userId) => {
+    if (isSupabaseConfigured()) {
+      await supabase.from('profiles').update({ status: 'aprovado' }).eq('id', userId);
+    }
+    setPendingUsers(prev => prev.filter(u => u.id !== userId));
+    fetchUsersForAdmin();
+  };
+
+  const handleRejectUser = async (userId) => {
+    if (isSupabaseConfigured()) {
+      await supabase.from('profiles').update({ status: 'recusado' }).eq('id', userId);
+    }
+    setPendingUsers(prev => prev.filter(u => u.id !== userId));
+    fetchUsersForAdmin();
+  };
+
+  const handleTriggerAlert = async (e) => {
+    e.preventDefault();
+    if (!alertMessage.trim()) return;
+    setIsSendingAlert(true);
+
+    const newAlert = {
+      id: 'alert_' + Date.now(),
+      title: alertTitle.trim() || '🚨 ALERTA DO ADMINISTRADOR',
+      message: alertMessage.trim(),
+      urgency: alertUrgency,
+      sound: alertSound,
+      image_url: alertImageUrl.trim() || null,
+      created_at: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('alerts').insert([newAlert]);
+      } catch (e) {}
+    }
+
+    setIsSendingAlert(false);
+    setAlertSentSuccess(true);
+    setAlertTitle('');
+    setAlertMessage('');
+    setAlertImageUrl('');
+    setTimeout(() => setAlertSentSuccess(false), 3000);
+  };
 
   const fetchPosts = async () => {
     if (!isSupabaseConfigured()) return;
@@ -72,7 +153,7 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     const postObj = {
       id: 'post_' + Date.now(),
       user_id: user.id,
-      vulgo: user.vulgo || 'Anônimo',
+      vulgo: user.vulgo || user.name || 'Anônimo',
       content: newPostContent.trim(),
       image_url: postImageUrl.trim() || null,
       created_at: new Date().toISOString()
@@ -97,7 +178,7 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     const msgObj = {
       id: 'msg_' + Date.now(),
       user_id: user.id,
-      vulgo: user.vulgo || 'Anônimo',
+      vulgo: user.vulgo || user.name || 'Anônimo',
       text: newMessageText.trim(),
       created_at: new Date().toISOString()
     };
@@ -119,22 +200,23 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
         <div className="user-header-info">
           <div className="user-avatar-badge">{user.vulgo ? user.vulgo.charAt(0).toUpperCase() : 'U'}</div>
           <div>
-            <h2 className="user-vulgo-name">@{user.vulgo}</h2>
+            <h2 className="user-vulgo-name">
+              @{user.vulgo || user.name} {user.role === 'admin' && <span className="admin-tag">ADM</span>}
+            </h2>
             <span className="online-tag">● Conectado aos Alertas</span>
           </div>
         </div>
         <button className="btn-icon-logout" onClick={onLogout} title="Sair"><LogOut size={18} /></button>
       </header>
 
-      {/* Conteúdo das Abas (Feed / Alertas / Chat) */}
+      {/* Conteúdo Principal */}
       <main className="mobile-tab-container">
         
         {/* ABA 1: INÍCIO (FEED COMUNITÁRIO) */}
         {activeTab === 'inicio' && (
           <div className="tab-feed">
-            {/* Caixa de Publicação */}
             <div className="glass-card post-box-card">
-              <h3>💬 O que está acontecendo?</h3>
+              <h3>💬 Feed da Comunidade</h3>
               <form onSubmit={handleCreatePost} className="post-form">
                 <textarea 
                   rows="3"
@@ -159,7 +241,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
               </form>
             </div>
 
-            {/* Lista de Postagens no Feed */}
             <div className="feed-posts-list">
               {posts.map((post) => (
                 <div key={post.id} className="glass-card post-card">
@@ -175,18 +256,18 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 2: ALERTAS (HISTÓRICO E TESTE) */}
+        {/* ABA 2: ALERTAS (FEED E HISTÓRICO DE ALERTAS) */}
         {activeTab === 'alerta' && (
           <div className="tab-alerts">
             <div className="glass-card">
               <h3>🚨 Central de Alertas</h3>
-              <p className="sub-text">Historico de notificações de emergência enviadas pelo Administrador.</p>
+              <p className="sub-text">Notificações enviadas pelo Administrador.</p>
               
               <div className="test-alert-section">
                 <h4>Simular Teste no Celular:</h4>
                 <div className="test-buttons-row">
                   <button className="btn-test btn-test-critical" onClick={() => onSimulateAlert('critical')}>
-                    <Radio size={16} /> Testar Alarme
+                    <Radio size={16} /> Testar Alarme de Emergência
                   </button>
                 </div>
               </div>
@@ -213,7 +294,7 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 3: CHAT (BATE-PAPO EM TEMPO REAL) */}
+        {/* ABA 3: CHAT */}
         {activeTab === 'chat' && (
           <div className="tab-chat">
             <div className="glass-card chat-box-card">
@@ -221,7 +302,7 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
                 {messages.map((msg) => (
                   <div 
                     key={msg.id} 
-                    className={`chat-message-bubble ${msg.vulgo === user.vulgo ? 'my-message' : 'other-message'}`}
+                    className={`chat-message-bubble ${msg.vulgo === (user.vulgo || user.name) ? 'my-message' : 'other-message'}`}
                   >
                     <span className="chat-sender">@{msg.vulgo}</span>
                     <p className="chat-text">{msg.text}</p>
@@ -247,15 +328,104 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
+        {/* ABA 4 EXCLUSIVA: PAINEL ADMIN (SÓ VISÍVEL PARA VOCÊ) */}
+        {activeTab === 'admin' && user.role === 'admin' && (
+          <div className="tab-admin">
+            {/* Seção 1: Disparar Alerta para Celulares */}
+            <div className="glass-card">
+              <h3>🚨 Disparar Alerta Geral (Ligação no Celular)</h3>
+              <form onSubmit={handleTriggerAlert} className="post-form" style={{ marginTop: '0.8rem' }}>
+                <div className="form-group">
+                  <label>Título do Alerta</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: PERIGO / ALERTA CRÍTICO" 
+                    value={alertTitle}
+                    onChange={e => setAlertTitle(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Mensagem / Descrição</label>
+                  <textarea 
+                    rows="3"
+                    placeholder="Escreva a mensagem que vai tocar e vibrar no celular..." 
+                    value={alertMessage}
+                    onChange={e => setAlertMessage(e.target.value)}
+                    className="input-field textarea-field"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>URL da Imagem (Opcional)</label>
+                  <input 
+                    type="url" 
+                    placeholder="https://exemplo.com/imagem.jpg" 
+                    value={alertImageUrl}
+                    onChange={e => setAlertImageUrl(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+
+                {alertSentSuccess && (
+                  <div className="success-banner">
+                    <Check size={18} /> Alerta disparado no celular de todos os usuários!
+                  </div>
+                )}
+
+                <button type="submit" className="btn-primary" disabled={isSendingAlert}>
+                  <Send size={16} /> DISPARAR ALERTA AGORA
+                </button>
+              </form>
+            </div>
+
+            {/* Seção 2: Gerenciar Sala de Espera (Aprovar / Rejeitar) */}
+            <div className="glass-card">
+              <div className="tab-header-flex">
+                <h3>👥 Sala de Espera ({pendingUsers.length})</h3>
+                <button className="btn-icon" onClick={fetchUsersForAdmin} title="Atualizar"><RefreshCw size={16} /></button>
+              </div>
+
+              {pendingUsers.length === 0 ? (
+                <p className="empty-text" style={{ fontSize: '0.85rem', color: '#9ca3af', margin: '0.5rem 0' }}>
+                  Nenhum usuário aguardando na Sala de Espera no momento.
+                </p>
+              ) : (
+                <div className="users-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  {pendingUsers.map((pUser) => (
+                    <div key={pUser.id} className="user-card pending-card">
+                      <div className="user-info">
+                        <h4>@{pUser.vulgo || pUser.name}</h4>
+                        <p>{pUser.email}</p>
+                        <span className="badge badge-pending">Pendente</span>
+                      </div>
+                      <div className="user-actions">
+                        <button className="btn-action btn-approve" onClick={() => handleApproveUser(pUser.id)}>
+                          <Check size={14} /> Liberar
+                        </button>
+                        <button className="btn-action btn-reject" onClick={() => handleRejectUser(pUser.id)}>
+                          <X size={14} /> Rejeitar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </main>
 
-      {/* MENU NATIVO DO RODAPÉ (FIXO NO CELULAR) */}
+      {/* MENU NATIVO DO RODAPÉ (COM ABA ADMIN SE ROLE === 'ADMIN') */}
       <nav className="mobile-bottom-nav">
         <button 
           className={`nav-item ${activeTab === 'inicio' ? 'active' : ''}`}
           onClick={() => setActiveTab('inicio')}
         >
-          <Home size={22} />
+          <Home size={20} />
           <span>Início</span>
         </button>
 
@@ -263,7 +433,7 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           className={`nav-item ${activeTab === 'alerta' ? 'active' : ''}`}
           onClick={() => setActiveTab('alerta')}
         >
-          <Bell size={22} />
+          <Bell size={20} />
           <span>Alerta</span>
           {alertsHistory.length > 0 && <span className="nav-badge-count">{alertsHistory.length}</span>}
         </button>
@@ -272,9 +442,21 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`}
           onClick={() => setActiveTab('chat')}
         >
-          <MessageSquare size={22} />
+          <MessageSquare size={20} />
           <span>Chat</span>
         </button>
+
+        {/* ABA ADMIN EXCLUSIVA PARA VOCÊ */}
+        {user.role === 'admin' && (
+          <button 
+            className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
+            onClick={() => setActiveTab('admin')}
+          >
+            <Shield size={20} color="#ff3b30" />
+            <span style={{ color: '#ff3b30' }}>Painel ADM</span>
+            {pendingUsers.length > 0 && <span className="nav-badge-count">{pendingUsers.length}</span>}
+          </button>
+        )}
       </nav>
     </div>
   );
