@@ -15,22 +15,44 @@ export default function App() {
   
   const supabaseReady = isSupabaseConfigured();
 
+  // Carregar histórico de alertas ao entrar
   useEffect(() => {
     if (!supabaseReady) return;
 
-    const alertsChannel = supabase
-      .channel('public:alerts')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, (payload) => {
-        const newAlert = payload.new;
-        if (currentUser && currentUser.status === 'aprovado') {
-          setActiveAlert(newAlert);
-          setAlertsHistory((prev) => [newAlert, ...prev]);
-        }
-      })
-      .subscribe();
+    const fetchInitialAlerts = async () => {
+      try {
+        const { data } = await supabase.from('alerts').select('*').order('created_at', { ascending: false }).limit(20);
+        if (data) setAlertsHistory(data);
+      } catch (e) {
+        console.error('Erro ao buscar alertas:', e);
+      }
+    };
 
+    fetchInitialAlerts();
+  }, [supabaseReady]);
+
+  // Listener Realtime GLOBAL de Alertas (Escuta a qualquer momento, independente se currentUser já carregou)
+  useEffect(() => {
+    if (!supabaseReady) return;
+
+    console.log('Iniciando Listener Realtime para tabela alerts...');
+    const alertsChannel = supabase
+      .channel('global_alerts_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, (payload) => {
+        console.log('🚨 NOVO ALERTA RECEBIDO VIA REALTIME:', payload.new);
+        const newAlert = payload.new;
+        
+        // Ativa a tela de ligação e vibração para o usuário ativo
+        setActiveAlert(newAlert);
+        setAlertsHistory((prev) => [newAlert, ...prev]);
+      })
+      .subscribe((status) => {
+        console.log('Status da inscrição Realtime Supabase:', status);
+      });
+
+    // Escutar atualizações de status do usuário (aprovação na Sala de Espera)
     const profilesChannel = supabase
-      .channel('public:profiles_current')
+      .channel('global_profiles_realtime')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
         const updated = payload.new;
         if (currentUser && currentUser.id === updated.id) {
@@ -43,7 +65,7 @@ export default function App() {
       supabase.removeChannel(alertsChannel);
       supabase.removeChannel(profilesChannel);
     };
-  }, [currentUser, supabaseReady]);
+  }, [supabaseReady, currentUser?.id]);
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
@@ -57,11 +79,10 @@ export default function App() {
   const handleSimulateAlert = (urgencyType = 'critical') => {
     const simAlert = {
       id: 'sim_' + Date.now(),
-      title: urgencyType === 'critical' ? '🚨 ALERTA CRÍTICO DE EMERGÊNCIA' : '📢 AVISO DO ADM',
+      title: urgencyType === 'critical' ? 'LOMBROU FUNDAO' : '📢 AVISO DO ADM',
       message: 'Este é um teste do alerta em tempo real no celular com toque estilo ligação e vibração!',
       urgency: urgencyType,
       sound: urgencyType === 'critical' ? 'siren' : 'call',
-      image_url: 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=600&auto=format&fit=crop&q=60',
       created_at: new Date().toISOString()
     };
     setActiveAlert(simAlert);
@@ -79,7 +100,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Botão e Prompt Flutuante de Instalação PWA no Celular */}
+      {/* Botão e Banner de Instalação PWA no Celular */}
       <PWAInstallPrompt />
 
       {/* ROTEAMENTO UNIFICADO MOBILE */}
@@ -103,7 +124,7 @@ export default function App() {
         />
       )}
 
-      {/* Overlay estilo chamada */}
+      {/* Overlay estilo chamada LOMBROU (Ativado instantaneamente quando activeAlert for preenchido) */}
       {activeAlert && (
         <CallAlertOverlay 
           alert={activeAlert} 
