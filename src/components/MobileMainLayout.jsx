@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Bell, MessageSquare, Send, Image as ImageIcon, Heart, User, LogOut, Radio, Volume2, Shield, Users, Check, X, RefreshCw } from 'lucide-react';
+import { Home, Bell, MessageSquare, Send, Image as ImageIcon, Heart, User, LogOut, Radio, Volume2, Shield, Users, Check, X, RefreshCw, Layers } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
 export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHistory, onSimulateAlert }) {
   const [activeTab, setActiveTab] = useState('inicio'); // 'inicio' | 'alerta' | 'chat' | 'admin'
+  const [adminSubTab, setAdminSubTab] = useState('alerta'); // 'alerta' | 'pedidos' | 'usuarios'
 
   // Admin Management State
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -41,7 +42,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     }
 
     if (isSupabaseConfigured()) {
-      // Listener realtime para o Feed
       const postsSub = supabase
         .channel('public:posts')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
@@ -49,7 +49,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
         })
         .subscribe();
 
-      // Listener realtime para o Chat
       const messagesSub = supabase
         .channel('public:messages')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
@@ -57,7 +56,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
         })
         .subscribe();
 
-      // Listener realtime para usuários (Aprovações do ADM)
       const profilesSub = supabase
         .channel('public:profiles_admin')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
@@ -256,7 +254,7 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 2: ALERTAS (FEED E HISTÓRICO DE ALERTAS) */}
+        {/* ABA 2: ALERTAS */}
         {activeTab === 'alerta' && (
           <div className="tab-alerts">
             <div className="glass-card">
@@ -328,98 +326,151 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 4 EXCLUSIVA: PAINEL ADMIN (SÓ VISÍVEL PARA VOCÊ) */}
+        {/* ABA 4 EXCLUSIVA: PAINEL ADMIN COM SUB-NAVEGAÇÃO POR BOTÕES */}
         {activeTab === 'admin' && user.role === 'admin' && (
           <div className="tab-admin">
-            {/* Seção 1: Disparar Alerta para Celulares */}
-            <div className="glass-card">
-              <h3>🚨 Disparar Alerta Geral (Ligação no Celular)</h3>
-              <form onSubmit={handleTriggerAlert} className="post-form" style={{ marginTop: '0.8rem' }}>
-                <div className="form-group">
-                  <label>Título do Alerta</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: PERIGO / ALERTA CRÍTICO" 
-                    value={alertTitle}
-                    onChange={e => setAlertTitle(e.target.value)}
-                    className="input-field"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Mensagem / Descrição</label>
-                  <textarea 
-                    rows="3"
-                    placeholder="Escreva a mensagem que vai tocar e vibrar no celular..." 
-                    value={alertMessage}
-                    onChange={e => setAlertMessage(e.target.value)}
-                    className="input-field textarea-field"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>URL da Imagem (Opcional)</label>
-                  <input 
-                    type="url" 
-                    placeholder="https://exemplo.com/imagem.jpg" 
-                    value={alertImageUrl}
-                    onChange={e => setAlertImageUrl(e.target.value)}
-                    className="input-field"
-                  />
-                </div>
-
-                {alertSentSuccess && (
-                  <div className="success-banner">
-                    <Check size={18} /> Alerta disparado no celular de todos os usuários!
-                  </div>
-                )}
-
-                <button type="submit" className="btn-primary" disabled={isSendingAlert}>
-                  <Send size={16} /> DISPARAR ALERTA AGORA
-                </button>
-              </form>
+            
+            {/* SUB-MENU DO ADM (BOTOES ORGANIZADOS DE SELECAO) */}
+            <div className="admin-sub-menu">
+              <button 
+                className={`admin-sub-btn ${adminSubTab === 'alerta' ? 'active' : ''}`}
+                onClick={() => setAdminSubTab('alerta')}
+              >
+                <Radio size={16} /> Disparar Alerta
+              </button>
+              <button 
+                className={`admin-sub-btn ${adminSubTab === 'pedidos' ? 'active' : ''}`}
+                onClick={() => setAdminSubTab('pedidos')}
+              >
+                <Users size={16} /> Pedidos ({pendingUsers.length})
+              </button>
+              <button 
+                className={`admin-sub-btn ${adminSubTab === 'usuarios' ? 'active' : ''}`}
+                onClick={() => setAdminSubTab('usuarios')}
+              >
+                <Shield size={16} /> Aprovados ({approvedUsers.length})
+              </button>
             </div>
 
-            {/* Seção 2: Gerenciar Sala de Espera (Aprovar / Rejeitar) */}
-            <div className="glass-card">
-              <div className="tab-header-flex">
-                <h3>👥 Sala de Espera ({pendingUsers.length})</h3>
-                <button className="btn-icon" onClick={fetchUsersForAdmin} title="Atualizar"><RefreshCw size={16} /></button>
-              </div>
+            {/* SEÇÃO 1: DISPARAR ALERTA */}
+            {adminSubTab === 'alerta' && (
+              <div className="glass-card">
+                <h3>🚨 Disparar Alerta no Celular</h3>
+                <p className="sub-text">Toca como ligação e vibra no celular de todos os usuários liberados.</p>
 
-              {pendingUsers.length === 0 ? (
-                <p className="empty-text" style={{ fontSize: '0.85rem', color: '#9ca3af', margin: '0.5rem 0' }}>
-                  Nenhum usuário aguardando na Sala de Espera no momento.
-                </p>
-              ) : (
-                <div className="users-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  {pendingUsers.map((pUser) => (
-                    <div key={pUser.id} className="user-card pending-card">
+                <form onSubmit={handleTriggerAlert} className="post-form" style={{ marginTop: '0.8rem' }}>
+                  <div className="form-group">
+                    <label>Título do Alerta</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: PERIGO / ALERTA CRÍTICO" 
+                      value={alertTitle}
+                      onChange={e => setAlertTitle(e.target.value)}
+                      className="input-field"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Mensagem / Descrição</label>
+                    <textarea 
+                      rows="3"
+                      placeholder="Escreva a mensagem que vai tocar e vibrar..." 
+                      value={alertMessage}
+                      onChange={e => setAlertMessage(e.target.value)}
+                      className="input-field textarea-field"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>URL da Imagem (Opcional)</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://exemplo.com/imagem.jpg" 
+                      value={alertImageUrl}
+                      onChange={e => setAlertImageUrl(e.target.value)}
+                      className="input-field"
+                    />
+                  </div>
+
+                  {alertSentSuccess && (
+                    <div className="success-banner">
+                      <Check size={18} /> Alerta disparado com sucesso!
+                    </div>
+                  )}
+
+                  <button type="submit" className="btn-primary" disabled={isSendingAlert}>
+                    <Send size={16} /> DISPARAR ALERTA AGORA
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* SEÇÃO 2: PEDIDOS DE ACESSO (SALA DE ESPERA) */}
+            {adminSubTab === 'pedidos' && (
+              <div className="glass-card">
+                <div className="tab-header-flex">
+                  <h3>👥 Solicitações Pendentes ({pendingUsers.length})</h3>
+                  <button className="btn-icon" onClick={fetchUsersForAdmin} title="Atualizar"><RefreshCw size={16} /></button>
+                </div>
+
+                {pendingUsers.length === 0 ? (
+                  <div className="empty-card" style={{ padding: '1.5rem 0', textCenter: 'center' }}>
+                    <p style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Nenhum usuário aguardando na Sala de Espera.</p>
+                  </div>
+                ) : (
+                  <div className="users-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.5rem' }}>
+                    {pendingUsers.map((pUser) => (
+                      <div key={pUser.id} className="user-card pending-card">
+                        <div className="user-info">
+                          <h4>@{pUser.vulgo || pUser.name}</h4>
+                          <p>{pUser.email}</p>
+                          <span className="badge badge-pending">Pendente</span>
+                        </div>
+                        <div className="user-actions">
+                          <button className="btn-action btn-approve" onClick={() => handleApproveUser(pUser.id)}>
+                            <Check size={14} /> Autorizar
+                          </button>
+                          <button className="btn-action btn-reject" onClick={() => handleRejectUser(pUser.id)}>
+                            <X size={14} /> Rejeitar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SEÇÃO 3: USUÁRIOS APROVADOS */}
+            {adminSubTab === 'usuarios' && (
+              <div className="glass-card">
+                <h3>🛡️ Usuários com Acesso Liberado ({approvedUsers.length})</h3>
+                <div className="users-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.8rem' }}>
+                  {approvedUsers.map((aUser) => (
+                    <div key={aUser.id} className="user-card approved-card">
                       <div className="user-info">
-                        <h4>@{pUser.vulgo || pUser.name}</h4>
-                        <p>{pUser.email}</p>
-                        <span className="badge badge-pending">Pendente</span>
+                        <h4>@{aUser.vulgo || aUser.name} {aUser.role === 'admin' && '(ADM)'}</h4>
+                        <p>{aUser.email}</p>
+                        <span className="badge badge-approved">Acesso Ativo</span>
                       </div>
-                      <div className="user-actions">
-                        <button className="btn-action btn-approve" onClick={() => handleApproveUser(pUser.id)}>
-                          <Check size={14} /> Liberar
+                      {aUser.role !== 'admin' && (
+                        <button className="btn-action btn-reject" onClick={() => handleRejectUser(aUser.id)}>
+                          Bloquear
                         </button>
-                        <button className="btn-action btn-reject" onClick={() => handleRejectUser(pUser.id)}>
-                          <X size={14} /> Rejeitar
-                        </button>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
           </div>
         )}
 
       </main>
 
-      {/* MENU NATIVO DO RODAPÉ (COM ABA ADMIN SE ROLE === 'ADMIN') */}
+      {/* MENU NATIVO DO RODAPÉ */}
       <nav className="mobile-bottom-nav">
         <button 
           className={`nav-item ${activeTab === 'inicio' ? 'active' : ''}`}
@@ -446,7 +497,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           <span>Chat</span>
         </button>
 
-        {/* ABA ADMIN EXCLUSIVA PARA VOCÊ */}
         {user.role === 'admin' && (
           <button 
             className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
