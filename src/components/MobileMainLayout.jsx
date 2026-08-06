@@ -1,23 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Bell, MessageSquare, Send, Image as ImageIcon, Heart, User, LogOut, Radio, Volume2, Shield, Users, Check, X, RefreshCw, Layers } from 'lucide-react';
+import { Home, Bell, MessageSquare, Send, LogOut, Radio, Shield, Users, Check, X, RefreshCw, AlertTriangle, Zap } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
 export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHistory, onSimulateAlert }) {
   const [activeTab, setActiveTab] = useState('inicio'); // 'inicio' | 'alerta' | 'chat' | 'admin'
   const [adminSubTab, setAdminSubTab] = useState('alerta'); // 'alerta' | 'pedidos' | 'usuarios'
 
+  // Lista dos 10 Cards Rápidos do ADM
+  const ALERT_CARDS = [
+    { id: 'fundao', name: 'FUNDAO' },
+    { id: 'entradao', name: 'ENTRADAO' },
+    { id: 'costa', name: 'COSTA' },
+    { id: 'cinco_mais_um', name: '5+1' },
+    { id: 'udm', name: 'UDM' },
+    { id: 'rua_nova', name: 'RUA NOVA' },
+    { id: 'rua_da_igreja', name: 'RUA DA IGREJA' },
+    { id: 'quadra_do_gelo', name: 'QUADRA DO GELO' },
+    { id: 'firma_do_gelo', name: 'FIRMA DO GELO' },
+    { id: 'quatro_ponto_cinco', name: '4.5' }
+  ];
+
   // Admin Management State
   const [pendingUsers, setPendingUsers] = useState([]);
   const [approvedUsers, setApprovedUsers] = useState([]);
 
-  // Alert Form State (Painel ADM)
-  const [alertTitle, setAlertTitle] = useState('');
-  const [alertMessage, setAlertMessage] = useState('');
-  const [alertUrgency, setAlertUrgency] = useState('critical');
-  const [alertSound, setAlertSound] = useState('siren');
-  const [alertImageUrl, setAlertImageUrl] = useState('');
-  const [isSendingAlert, setIsSendingAlert] = useState(false);
+  // State para envio por Card
+  const [sendingCardId, setSendingCardId] = useState(null);
   const [alertSentSuccess, setAlertSentSuccess] = useState(false);
+  const [lastSentTitle, setLastSentTitle] = useState('');
 
   // Feed State
   const [posts, setPosts] = useState([
@@ -98,18 +108,17 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     fetchUsersForAdmin();
   };
 
-  const handleTriggerAlert = async (e) => {
-    e.preventDefault();
-    if (!alertMessage.trim()) return;
-    setIsSendingAlert(true);
+  // Função ao clicar em um dos 10 CARDS do ADM
+  const handleTriggerCardAlert = async (card) => {
+    setSendingCardId(card.id);
+    const lombrouTitle = `LOMBROU ${card.name}`;
 
     const newAlert = {
       id: 'alert_' + Date.now(),
-      title: alertTitle.trim() || '🚨 ALERTA DO ADMINISTRADOR',
-      message: alertMessage.trim(),
-      urgency: alertUrgency,
-      sound: alertSound,
-      image_url: alertImageUrl.trim() || null,
+      title: lombrouTitle,
+      message: `ATENÇÃO: ALERTA DISPARADO PARA ${card.name}!`,
+      urgency: 'critical',
+      sound: 'siren',
       created_at: new Date().toISOString()
     };
 
@@ -119,11 +128,9 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
       } catch (e) {}
     }
 
-    setIsSendingAlert(false);
+    setSendingCardId(null);
+    setLastSentTitle(lombrouTitle);
     setAlertSentSuccess(true);
-    setAlertTitle('');
-    setAlertMessage('');
-    setAlertImageUrl('');
     setTimeout(() => setAlertSentSuccess(false), 3000);
   };
 
@@ -259,13 +266,13 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           <div className="tab-alerts">
             <div className="glass-card">
               <h3>🚨 Central de Alertas</h3>
-              <p className="sub-text">Notificações enviadas pelo Administrador.</p>
+              <p className="sub-text">Notificações de emergência disparadas pelo ADM.</p>
               
               <div className="test-alert-section">
                 <h4>Simular Teste no Celular:</h4>
                 <div className="test-buttons-row">
                   <button className="btn-test btn-test-critical" onClick={() => onSimulateAlert('critical')}>
-                    <Radio size={16} /> Testar Alarme de Emergência
+                    <Radio size={16} /> Testar Alarme
                   </button>
                 </div>
               </div>
@@ -326,17 +333,17 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 4 EXCLUSIVA: PAINEL ADMIN COM SUB-NAVEGAÇÃO POR BOTÕES */}
+        {/* ABA 4 EXCLUSIVA: PAINEL ADMIN COM 10 CARDS DE DISPARO RÁPIDO */}
         {activeTab === 'admin' && user.role === 'admin' && (
           <div className="tab-admin">
             
-            {/* SUB-MENU DO ADM (BOTOES ORGANIZADOS DE SELECAO) */}
+            {/* SUB-MENU DO ADM */}
             <div className="admin-sub-menu">
               <button 
                 className={`admin-sub-btn ${adminSubTab === 'alerta' ? 'active' : ''}`}
                 onClick={() => setAdminSubTab('alerta')}
               >
-                <Radio size={16} /> Disparar Alerta
+                <Zap size={16} /> Disparar Cards
               </button>
               <button 
                 className={`admin-sub-btn ${adminSubTab === 'pedidos' ? 'active' : ''}`}
@@ -352,61 +359,40 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
               </button>
             </div>
 
-            {/* SEÇÃO 1: DISPARAR ALERTA */}
+            {/* SEÇÃO 1: GRID DOS 10 CARDS DE ALERTA RÁPIDO */}
             {adminSubTab === 'alerta' && (
               <div className="glass-card">
-                <h3>🚨 Disparar Alerta no Celular</h3>
-                <p className="sub-text">Toca como ligação e vibra no celular de todos os usuários liberados.</p>
+                <div className="card-disparar-header">
+                  <h3>🚨 Disparo Rápido por Card</h3>
+                  <p className="sub-text">Clique no card para tocar e piscar a tela dos usuários liberados.</p>
+                </div>
 
-                <form onSubmit={handleTriggerAlert} className="post-form" style={{ marginTop: '0.8rem' }}>
-                  <div className="form-group">
-                    <label>Título do Alerta</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ex: PERIGO / ALERTA CRÍTICO" 
-                      value={alertTitle}
-                      onChange={e => setAlertTitle(e.target.value)}
-                      className="input-field"
-                    />
+                {alertSentSuccess && (
+                  <div className="success-banner-lombrou">
+                    <Check size={20} /> <strong>{lastSentTitle}</strong> DISPARADO COM SUCESSO!
                   </div>
+                )}
 
-                  <div className="form-group">
-                    <label>Mensagem / Descrição</label>
-                    <textarea 
-                      rows="3"
-                      placeholder="Escreva a mensagem que vai tocar e vibrar..." 
-                      value={alertMessage}
-                      onChange={e => setAlertMessage(e.target.value)}
-                      className="input-field textarea-field"
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>URL da Imagem (Opcional)</label>
-                    <input 
-                      type="url" 
-                      placeholder="https://exemplo.com/imagem.jpg" 
-                      value={alertImageUrl}
-                      onChange={e => setAlertImageUrl(e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-
-                  {alertSentSuccess && (
-                    <div className="success-banner">
-                      <Check size={18} /> Alerta disparado com sucesso!
-                    </div>
-                  )}
-
-                  <button type="submit" className="btn-primary" disabled={isSendingAlert}>
-                    <Send size={16} /> DISPARAR ALERTA AGORA
-                  </button>
-                </form>
+                <div className="cards-grid-admin">
+                  {ALERT_CARDS.map((card) => (
+                    <button
+                      key={card.id}
+                      className={`alert-card-btn ${sendingCardId === card.id ? 'sending' : ''}`}
+                      onClick={() => handleTriggerCardAlert(card)}
+                      disabled={sendingCardId === card.id}
+                    >
+                      <div className="alert-card-icon">
+                        <AlertTriangle size={22} color="#ff3b30" />
+                      </div>
+                      <span className="alert-card-name">{card.name}</span>
+                      <span className="alert-card-sub">DISPARAR</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* SEÇÃO 2: PEDIDOS DE ACESSO (SALA DE ESPERA) */}
+            {/* SEÇÃO 2: PEDIDOS DE ACESSO */}
             {adminSubTab === 'pedidos' && (
               <div className="glass-card">
                 <div className="tab-header-flex">

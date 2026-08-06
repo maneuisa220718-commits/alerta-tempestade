@@ -1,19 +1,12 @@
 import React, { useState } from 'react';
-import { PhoneCall, Bell, ShieldAlert, X, Check, Volume2, AlertTriangle, Radio } from 'lucide-react';
-import { playEmergencyAlertSound, playCallIncomingSound, stopSound, triggerVibration, stopVibration } from '../services/soundService';
+import { Radio, Check, AlertTriangle } from 'lucide-react';
+import { stopSound, stopVibration, playEmergencyAlertSound, triggerVibration } from '../services/soundService';
 
 export default function CallAlertOverlay({ alert, onClose }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-
   React.useEffect(() => {
     if (alert) {
       triggerVibration();
-      if (alert.sound === 'siren' || alert.urgency === 'critical') {
-        playEmergencyAlertSound();
-      } else {
-        playCallIncomingSound();
-      }
-      setIsPlaying(true);
+      playEmergencyAlertSound();
     }
 
     return () => {
@@ -27,64 +20,54 @@ export default function CallAlertOverlay({ alert, onClose }) {
   const handleAcknowledge = () => {
     stopSound();
     stopVibration();
-    setIsPlaying(false);
     if (onClose) onClose();
   };
 
-  const getUrgencyBadge = (urgency) => {
-    switch (urgency) {
-      case 'critical':
-        return { label: 'ALERTA CRÍTICO DE EMERGÊNCIA', color: '#ff3b30', bg: 'rgba(255, 59, 48, 0.2)' };
-      case 'warning':
-        return { label: 'AVISO IMPORTANTE', color: '#ffcc00', bg: 'rgba(255, 204, 0, 0.2)' };
-      default:
-        return { label: 'NOTIFICAÇÃO INFORMATIVA', color: '#007aff', bg: 'rgba(0, 122, 255, 0.2)' };
-    }
-  };
-
-  const urgencyInfo = getUrgencyBadge(alert.urgency);
+  // Formatação do título estilo "LOMBROU FUNDAO"
+  const isLombrou = alert.title?.toUpperCase().startsWith('LOMBROU');
+  const alertTitleText = isLombrou ? alert.title.toUpperCase() : `LOMBROU ${alert.title?.toUpperCase()}`;
 
   return (
-    <div className="call-overlay-backdrop">
+    <div className="call-overlay-backdrop flashing-red-bg">
       <div className="call-overlay-container">
+
         {/* Animação Pulsação Estilo Chamada */}
-        <div className="call-pulse-ring"></div>
-        <div className="call-pulse-ring ring-delay"></div>
+        <div className="call-pulse-ring-red"></div>
+        <div className="call-pulse-ring-red ring-delay"></div>
 
         {/* Cabeçalho de Alerta */}
         <div className="call-header">
-          <div className="urgency-badge" style={{ backgroundColor: urgencyInfo.bg, color: urgencyInfo.color, borderColor: urgencyInfo.color }}>
-            <Radio className="pulse-icon" size={16} />
-            <span>{urgencyInfo.label}</span>
+          <div className="lombrou-badge-pulse">
+            <AlertTriangle className="pulse-icon-fast" size={24} />
+            <span>ALERTA DE EMERGÊNCIA</span>
           </div>
-          <p className="call-subtitle">Alerta transmitido pelo Administrador</p>
         </div>
 
-        {/* Imagem do Alerta (se enviada) */}
-        {alert.image_url ? (
+        {/* Título GIGANTE "LOMBROU FUNDAO" */}
+        <div className="lombrou-title-container">
+          <h1 className="lombrou-title-text">{alertTitleText}</h1>
+        </div>
+
+        {/* Imagem do Alerta (se houver) */}
+        {alert.image_url && (
           <div className="call-image-wrapper">
             <img src={alert.image_url} alt="Alerta" className="call-alert-image" />
           </div>
-        ) : (
-          <div className="call-icon-placeholder">
-            <ShieldAlert size={64} color={urgencyInfo.color} />
-          </div>
         )}
 
-        {/* Detalhes do Conteúdo */}
+        {/* Mensagem / Descrição */}
         <div className="call-content">
-          <h1 className="call-title">{alert.title || 'Novo Alerta Recebido!'}</h1>
-          <p className="call-message">{alert.message}</p>
+          <p className="call-message-bold">{alert.message || 'ALERTA DE EMERGÊNCIA ATIVADO PELO ADMINISTRADOR'}</p>
           <span className="call-time">{new Date(alert.created_at || Date.now()).toLocaleTimeString()}</span>
         </div>
 
-        {/* Painel de Ação (Atender / Confirmar) */}
+        {/* Botão de Confirmação */}
         <div className="call-actions">
           <button className="call-btn btn-accept" onClick={handleAcknowledge}>
-            <div className="btn-icon-circle">
-              <Check size={28} />
+            <div className="btn-icon-circle-red">
+              <Check size={36} />
             </div>
-            <span>ENTENDIDO / RECEBIDO</span>
+            <span className="btn-confirm-text">ENTENDIDO / CONFIRMAR LEITURA</span>
           </button>
         </div>
       </div>
