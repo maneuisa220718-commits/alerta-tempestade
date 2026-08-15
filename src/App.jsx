@@ -13,7 +13,6 @@ export default function App() {
   const [activeAlert, setActiveAlert] = useState(null);
   const [alertsHistory, setAlertsHistory] = useState([]);
   
-  // Estado local das preferências personalizadas de alerta do usuário
   const [userPreferences, setUserPreferences] = useState({
     soundEnabled: true,
     vibrationEnabled: true,
@@ -38,27 +37,48 @@ export default function App() {
     fetchInitialAlerts();
   }, [supabaseReady]);
 
-  // Listener Realtime GLOBAL de Alertas
+  // Listener Realtime GLOBAL de Alertas (Executa tanto em primeiro plano quanto em segundo plano)
   useEffect(() => {
     if (!supabaseReady) return;
 
     const alertsChannel = supabase
       .channel('global_alerts_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, async (payload) => {
         const newAlert = payload.new;
+        const alertImg = newAlert.image_url || 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=800&auto=format&fit=crop&q=80';
         
-        // Notificação Nativa do Sistema Operacional quando o app está em segundo plano / fechado
+        // 1. DISPARAR NOTIFICAÇÃO NATIVA COMPLETA VIA SERVICE WORKER EM SEGUNDO PLANO (CELULAR FECHADO / SEGUNDO PLANO)
         if ('Notification' in window && Notification.permission === 'granted') {
           try {
-            new Notification(newAlert.title, {
-              body: newAlert.message,
-              icon: '/favicon.svg',
-              vibrate: userPreferences.vibrationEnabled ? [1000, 500, 1000] : undefined
-            });
-          } catch (e) {}
+            const reg = await navigator.serviceWorker?.getRegistration();
+            if (reg && reg.showNotification) {
+              // Dispara pelo Service Worker nativo para garantir imagem e vibração no sistema
+              reg.showNotification(newAlert.title || '🚨 LOMBROU ALERTA', {
+                body: newAlert.message || 'ATENÇÃO: ALERTA DE EMERGÊNCIA DISPARADO!',
+                icon: 'https://cdn-icons-png.flaticon.com/512/1011/1011863.png',
+                badge: 'https://cdn-icons-png.flaticon.com/512/1011/1011863.png',
+                image: userPreferences.imageEnabled ? alertImg : undefined, // Imagem no banner da notificação
+                vibrate: userPreferences.vibrationEnabled ? [1000, 300, 1000, 300, 1000, 300, 1000] : undefined, // Vibração nativa
+                tag: 'lombrou-alert-v3',
+                renotify: true,
+                requireInteraction: true,
+                data: { url: window.location.origin }
+              });
+            } else {
+              // Fallback para construtor padrão se Service Worker não estiver pronto
+              new Notification(newAlert.title || '🚨 LOMBROU ALERTA', {
+                body: newAlert.message,
+                icon: 'https://cdn-icons-png.flaticon.com/512/1011/1011863.png',
+                image: userPreferences.imageEnabled ? alertImg : undefined,
+                vibrate: userPreferences.vibrationEnabled ? [1000, 300, 1000, 300, 1000] : undefined
+              });
+            }
+          } catch (e) {
+            console.error('Erro notificação nativa:', e);
+          }
         }
 
-        // Ativa a tela de ligação e vibração customizada
+        // 2. DISPARAR OVERLAY INTERNO COM SOM E VIBRAÇÃO DO NAVEGADOR
         setActiveAlert(newAlert);
         setAlertsHistory((prev) => [newAlert, ...prev]);
       })
@@ -139,7 +159,7 @@ export default function App() {
         />
       )}
 
-      {/* Overlay estilo chamada LOMBROU com suporte a preferências do usuário */}
+      {/* Overlay estilo chamada LOMBROU */}
       {activeAlert && (
         <CallAlertOverlay 
           alert={activeAlert} 
