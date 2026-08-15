@@ -383,14 +383,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
                   </label>
                 </div>
               </div>
-
-              {/* Botão de Teste Simulação */}
-              <div className="test-alert-section" style={{ marginTop: '1.2rem' }}>
-                <h4>Testar Suas Configurações:</h4>
-                <button className="btn-test btn-test-critical" onClick={() => onSimulateAlert('critical')}>
-                  <Radio size={16} /> Simular Alerta LOMBROU
-                </button>
-              </div>
             </div>
 
             {/* HISTÓRICO DE ALERTAS RECEBIDOS */}

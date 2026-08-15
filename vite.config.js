@@ -13,23 +13,25 @@ export default defineConfig({
       strategies: 'injectManifest',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'App de Alerta Mobile',
-        short_name: 'App Alerta',
-        description: 'Aplicativo de alertas manuais e emergência em tempo real com sala de espera',
+        name: 'Calculadora Pro',
+        short_name: 'Calculadora',
+        description: 'Aplicativo de Calculadora e Utilidades',
         theme_color: '#0b0f19',
         background_color: '#0b0f19',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
           {
-            src: 'https://cdn-icons-png.flaticon.com/512/564/564619.png',
+            src: 'https://cdn-icons-png.flaticon.com/512/1011/1011863.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable'
           },
           {
-            src: 'https://cdn-icons-png.flaticon.com/512/564/564619.png',
+            src: 'https://cdn-icons-png.flaticon.com/512/1011/1011863.png',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       }
