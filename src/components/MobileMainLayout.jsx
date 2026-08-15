@@ -283,10 +283,9 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
   };
 
 
-  const handleChatFileSelect = (e) => {
-    setChatFileError('');
-    const file = e.target.files[0];
+  const handleChatFileSelect = (file) => {
     if (!file) return;
+    setChatFileError('');
     if (file.type.startsWith('video/')) {
       const vid = document.createElement('video');
       vid.preload = 'metadata';
@@ -306,6 +305,9 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
       setChatMediaType('image');
     }
   };
+
+  const handleChatCamera = (e) => handleChatFileSelect(e.target.files[0]);
+  const handleChatGallery = (e) => handleChatFileSelect(e.target.files[0]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -550,75 +552,96 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 3: CHAT EM GRUPO (Mensagens expiram em 24h) */}
+        {/* ABA 3: CHAT EM GRUPO EM TELA CHEIA */}
         {activeTab === 'chat' && (
-          <div className="tab-chat">
-            <div className="chat-group-wrapper">
-              {/* Cabeçalho do Grupo */}
-              <div className="chat-group-header glass-card">
-                <MessageSquare size={18} color="#007aff" />
-                <span>Grupo Geral · <strong style={{color:'#34c759'}}>Mensagens por 24h</strong></span>
+          <div className="tab-chat-fullscreen">
+            {/* Header do Chat com seta de voltar */}
+            <div className="chat-fullscreen-header">
+              <button className="chat-back-btn" onClick={() => setActiveTab('inicio')}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <div className="chat-header-info">
+                <div className="chat-header-avatar">G</div>
+                <div>
+                  <p className="chat-header-name">Grupo Geral</p>
+                  <p className="chat-header-sub">{messages.filter(m => (Date.now() - new Date(m.created_at).getTime()) < 86400000).length} mensagens · <span style={{color:'#34c759'}}>Ao vivo</span></p>
+                </div>
               </div>
+            </div>
 
-              {/* Área de Mensagens com scroll automático */}
-              <div className="chat-messages-scroll">
-                {messages
-                  .filter(m => (Date.now() - new Date(m.created_at).getTime()) < 86400000)
-                  .map((msg, idx) => {
-                    const isMe = msg.vulgo === (user.vulgo || user.name);
-                    return (
-                      <div key={msg.id || idx} className={`chat-bubble-wrapper ${isMe ? 'me' : 'other'}`}>
-                        {!isMe && <span className="chat-bubble-name">@{msg.vulgo}</span>}
-                        <div className={`chat-bubble ${isMe ? 'bubble-me' : 'bubble-other'}`}>
-                          {msg.text && <p className="bubble-text">{msg.text}</p>}
-                          {msg.image_url && (
-                            msg.media_type === 'video'
-                              ? <video src={msg.image_url} controls className="bubble-media" />
-                              : <img src={msg.image_url} alt="mídia" className="bubble-media" />
-                          )}
-                          <span className="bubble-time">
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
+            {/* Área de mensagens */}
+            <div className="chat-messages-scroll">
+              {messages
+                .filter(m => (Date.now() - new Date(m.created_at).getTime()) < 86400000)
+                .map((msg, idx) => {
+                  const isMe = msg.vulgo === (user.vulgo || user.name);
+                  return (
+                    <div key={msg.id || idx} className={`chat-bubble-wrapper ${isMe ? 'me' : 'other'}`}>
+                      {!isMe && <span className="chat-bubble-name">@{msg.vulgo}</span>}
+                      <div className={`chat-bubble ${isMe ? 'bubble-me' : 'bubble-other'}`}>
+                        {msg.text && <p className="bubble-text">{msg.text}</p>}
+                        {msg.image_url && (
+                          msg.media_type === 'video'
+                            ? <video src={msg.image_url} controls className="bubble-media" />
+                            : <img src={msg.image_url} alt="mídia" className="bubble-media" />
+                        )}
+                        <span className="bubble-time">
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                    );
-                  })
-                }
-                <div ref={chatEndRef} />
-              </div>
+                    </div>
+                  );
+                })
+              }
+              <div ref={chatEndRef} />
+            </div>
 
-              {/* Formulário de Envio com Câmera */}
-              <div className="chat-input-area">
-                {chatFileError && <p style={{ color: '#ff3b30', fontSize: '0.75rem', padding: '0 0.5rem' }}>{chatFileError}</p>}
-                {chatFile && (
-                  <p style={{ color: '#60a5fa', fontSize: '0.75rem', padding: '0 0.5rem' }}>
-                    📎 {chatFile.name}
-                  </p>
-                )}
-                <form onSubmit={handleSendMessage} className="chat-input-form">
-                  {/* Botão Câmera */}
-                  <label htmlFor="chat-media-input" className="chat-camera-btn" title="Enviar foto ou vídeo">
-                    <Camera size={20} />
-                  </label>
-                  <input
-                    id="chat-media-input"
-                    type="file"
-                    accept="image/*,video/*"
-                    onChange={handleChatFileSelect}
-                    style={{ display: 'none' }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Mensagem para o grupo..."
-                    value={newMessageText}
-                    onChange={e => setNewMessageText(e.target.value)}
-                    className="input-field chat-text-input"
-                  />
-                  <button type="submit" className="btn-primary chat-send-btn">
-                    <Send size={18} />
-                  </button>
-                </form>
-              </div>
+            {/* Barra de Input do Chat */}
+            <div className="chat-input-area">
+              {chatFileError && <p style={{ color: '#ff3b30', fontSize: '0.73rem', padding: '0 0.8rem 0.2rem' }}>{chatFileError}</p>}
+              {chatFile && (
+                <p style={{ color: '#60a5fa', fontSize: '0.73rem', padding: '0 0.8rem 0.2rem' }}>
+                  📎 {chatFile.name}
+                </p>
+              )}
+              <form onSubmit={handleSendMessage} className="chat-input-form">
+
+                {/* Botão Câmera: Abre diretamente a câmera do celular */}
+                <label htmlFor="chat-camera-input" className="chat-camera-btn" title="Tirar foto agora">
+                  <Camera size={20} />
+                </label>
+                <input
+                  id="chat-camera-input"
+                  type="file"
+                  accept="image/*,video/*"
+                  capture="environment"
+                  onChange={handleChatCamera}
+                  style={{ display: 'none' }}
+                />
+
+                {/* Botão Galeria: Escolher foto/vídeo existente */}
+                <label htmlFor="chat-gallery-input" className="chat-gallery-btn" title="Escolher da galeria">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </label>
+                <input
+                  id="chat-gallery-input"
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleChatGallery}
+                  style={{ display: 'none' }}
+                />
+
+                <input
+                  type="text"
+                  placeholder="Mensagem para o grupo..."
+                  value={newMessageText}
+                  onChange={e => setNewMessageText(e.target.value)}
+                  className="input-field chat-text-input"
+                />
+                <button type="submit" className="btn-primary chat-send-btn">
+                  <Send size={18} />
+                </button>
+              </form>
             </div>
           </div>
         )}
@@ -742,44 +765,46 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
 
       </main>
 
-      {/* MENU NATIVO DO RODAPÉ */}
-      <nav className="mobile-bottom-nav">
-        <button 
-          className={`nav-item ${activeTab === 'inicio' ? 'active' : ''}`}
-          onClick={() => setActiveTab('inicio')}
-        >
-          <Home size={20} />
-          <span>Início</span>
-        </button>
-
-        <button 
-          className={`nav-item ${activeTab === 'alerta' ? 'active' : ''}`}
-          onClick={() => setActiveTab('alerta')}
-        >
-          <Bell size={20} />
-          <span>Alerta</span>
-          {alertsHistory.length > 0 && <span className="nav-badge-count">{alertsHistory.length}</span>}
-        </button>
-
-        <button 
-          className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`}
-          onClick={() => setActiveTab('chat')}
-        >
-          <MessageSquare size={20} />
-          <span>Chat</span>
-        </button>
-
-        {user.role === 'admin' && (
+      {/* MENU DO RODAPé: oculto quando estiver no chat em tela cheia */}
+      {activeTab !== 'chat' && (
+        <nav className="mobile-bottom-nav">
           <button 
-            className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
-            onClick={() => setActiveTab('admin')}
+            className={`nav-item ${activeTab === 'inicio' ? 'active' : ''}`}
+            onClick={() => setActiveTab('inicio')}
           >
-            <Shield size={20} color="#ff3b30" />
-            <span style={{ color: '#ff3b30' }}>Painel ADM</span>
-            {pendingUsers.length > 0 && <span className="nav-badge-count">{pendingUsers.length}</span>}
+            <Home size={20} />
+            <span>Início</span>
           </button>
-        )}
-      </nav>
+
+          <button 
+            className={`nav-item ${activeTab === 'alerta' ? 'active' : ''}`}
+            onClick={() => setActiveTab('alerta')}
+          >
+            <Bell size={20} />
+            <span>Alerta</span>
+            {alertsHistory.length > 0 && <span className="nav-badge-count">{alertsHistory.length}</span>}
+          </button>
+
+          <button 
+            className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chat')}
+          >
+            <MessageSquare size={20} />
+            <span>Chat</span>
+          </button>
+
+          {user.role === 'admin' && (
+            <button 
+              className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
+              onClick={() => setActiveTab('admin')}
+            >
+              <Shield size={20} color="#ff3b30" />
+              <span style={{ color: '#ff3b30' }}>Painel ADM</span>
+              {pendingUsers.length > 0 && <span className="nav-badge-count">{pendingUsers.length}</span>}
+            </button>
+          )}
+        </nav>
+      )}
     </div>
   );
 }
