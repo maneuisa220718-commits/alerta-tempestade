@@ -254,34 +254,41 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
       {/* Conteúdo Principal */}
       <main className="mobile-tab-container">
         
-        {/* ABA 1: INÍCIO (FEED COMUNITÁRIO) */}
+        {/* ABA 1: INÍCIO (FEED INFORMATIVO DO ADM) */}
         {activeTab === 'inicio' && (
           <div className="tab-feed">
-            <div className="glass-card post-box-card">
-              <h3>💬 Feed da Comunidade</h3>
-              <form onSubmit={handleCreatePost} className="post-form">
-                <textarea 
-                  rows="3"
-                  placeholder="Escreva seu comentário para todos os usuários..."
-                  value={newPostContent}
-                  onChange={e => setNewPostContent(e.target.value)}
-                  className="input-field textarea-field"
-                  required
-                />
-                <div className="post-form-actions">
-                  <input 
-                    type="url" 
-                    placeholder="URL da Imagem (opcional)" 
-                    value={postImageUrl} 
-                    onChange={e => setPostImageUrl(e.target.value)}
-                    className="input-field input-sm"
+            {/* Caixa de Publicação Exclusiva do ADM */}
+            {user.role === 'admin' ? (
+              <div className="glass-card post-box-card">
+                <h3>📣 Publicar no Feed (Exclusivo ADM)</h3>
+                <form onSubmit={handleCreatePost} className="post-form">
+                  <textarea 
+                    rows="3"
+                    placeholder="Escreva um comunicado para todos os usuários..."
+                    value={newPostContent}
+                    onChange={e => setNewPostContent(e.target.value)}
+                    className="input-field textarea-field"
+                    required
                   />
-                  <button type="submit" className="btn-primary btn-sm" disabled={isPosting}>
-                    <Send size={14} /> Postar
-                  </button>
-                </div>
-              </form>
-            </div>
+                  <div className="post-form-actions">
+                    <input 
+                      type="url" 
+                      placeholder="URL da Imagem (opcional)" 
+                      value={postImageUrl} 
+                      onChange={e => setPostImageUrl(e.target.value)}
+                      className="input-field input-sm"
+                    />
+                    <button type="submit" className="btn-primary btn-sm" disabled={isPosting}>
+                      <Send size={14} /> Publicar
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              <div className="glass-card post-box-card" style={{ padding: '1rem', textCenter: 'center' }}>
+                <h3 style={{ fontSize: '0.9rem', color: '#9ca3af' }}>📌 Feed Oficial de Comunicados do Administrador</h3>
+              </div>
+            )}
 
             <div className="feed-posts-list">
               {posts.map((post) => (
