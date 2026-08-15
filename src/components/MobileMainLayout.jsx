@@ -81,13 +81,19 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     if (isSupabaseConfigured()) {
       try {
         const { error: postError } = await supabase.from('posts').insert([postObj]);
-        if (postError) console.error('Erro no Supabase ao postar:', postError);
+        if (postError) {
+          console.error('Erro no Supabase ao postar:', postError);
+        }
       } catch (e) {
         console.error('Erro ao salvar post:', e);
       }
+      // Atualiza o Feed buscando direto do banco após postar
+      await fetchPosts();
+    } else {
+      // Fallback local sem Supabase
+      setPosts(prev => [{ ...postObj, id: 'local_' + Date.now(), created_at: new Date().toISOString() }, ...prev]);
     }
 
-    setPosts([postObj, ...posts]);
     setNewPostContent('');
     setPostImageUrl('');
     setSelectedFile(null);
@@ -149,9 +155,7 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
   const [lastSentTitle, setLastSentTitle] = useState('');
 
   // Feed State
-  const [posts, setPosts] = useState([
-    { id: 'post_1', vulgo: 'maneu (ADM)', content: 'Bem-vindos ao aplicativo de alertas! Fiquem atentos às notificações.', created_at: new Date().toISOString() }
-  ]);
+  const [posts, setPosts] = useState([]);
   const [newPostContent, setNewPostContent] = useState('');
   const [postImageUrl, setPostImageUrl] = useState('');
   const [isPosting, setIsPosting] = useState(false);
