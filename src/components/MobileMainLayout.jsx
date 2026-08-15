@@ -68,17 +68,20 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     }
 
     const postObj = {
-      user_id: user.id,
       vulgo: user.vulgo || user.name || 'Anônimo',
       content: newPostContent.trim(),
       image_url: mediaUrl,
-      media_type: mediaType,
-      created_at: new Date().toISOString()
+      media_type: mediaType
     };
+
+    if (user.id && !user.id.startsWith('admin_') && !user.id.startsWith('usr_')) {
+      postObj.user_id = user.id;
+    }
 
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('posts').insert([postObj]);
+        const { error: postError } = await supabase.from('posts').insert([postObj]);
+        if (postError) console.error('Erro no Supabase ao postar:', postError);
       } catch (e) {
         console.error('Erro ao salvar post:', e);
       }
