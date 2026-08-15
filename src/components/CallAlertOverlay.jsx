@@ -3,23 +3,29 @@ import { Radio, Volume2, Smartphone, Image as ImageIcon, Bell, Check, ShieldChec
 import { stopSound, stopVibration, playEmergencyAlertSound, triggerVibration } from '../services/soundService';
 
 export default function CallAlertOverlay({ alert, onClose, userPreferences }) {
-  // Configurações padrão de preferências do usuário (se não passadas, ativa todas)
-  const prefs = userPreferences || {
-    soundEnabled: true,
-    vibrationEnabled: true,
-    imageEnabled: true
-  };
+  // Garante valores padrão caso as preferências não estejam definidas
+  const soundEnabled = userPreferences?.soundEnabled ?? true;
+  const vibrationEnabled = userPreferences?.vibrationEnabled ?? true;
+  const imageEnabled = userPreferences?.imageEnabled ?? true;
+
+  // Imagem padrão chamativa de emergência caso o alerta do card não passe uma imagem específica
+  const defaultAlertImage = 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=800&auto=format&fit=crop&q=80';
+  const alertImageToDisplay = alert?.image_url || defaultAlertImage;
 
   useEffect(() => {
     if (alert) {
-      // Executa vibração apenas se o usuário permitiu nas configurações
-      if (prefs.vibrationEnabled) {
-        triggerVibration();
+      // 1. Toca o som da sirene de emergência se estiver ativado
+      if (soundEnabled) {
+        playEmergencyAlertSound();
+      } else {
+        stopSound();
       }
 
-      // Toca o som apenas se o usuário permitiu nas configurações
-      if (prefs.soundEnabled) {
-        playEmergencyAlertSound();
+      // 2. Dispara a vibração contínua do celular se estiver ativada
+      if (vibrationEnabled) {
+        triggerVibration();
+      } else {
+        stopVibration();
       }
     }
 
@@ -27,7 +33,7 @@ export default function CallAlertOverlay({ alert, onClose, userPreferences }) {
       stopSound();
       stopVibration();
     };
-  }, [alert, prefs]);
+  }, [alert, soundEnabled, vibrationEnabled]);
 
   if (!alert) return null;
 
@@ -59,10 +65,10 @@ export default function CallAlertOverlay({ alert, onClose, userPreferences }) {
           <h1 className="lombrou-title-text">{alertTitleText}</h1>
         </div>
 
-        {/* Exibe a imagem APENAS se o usuário deixou ativada a opção de Imagem */}
-        {prefs.imageEnabled && alert.image_url && (
+        {/* Exibe a imagem de alerta se a opção de Exibir Imagem estiver ATIVADA */}
+        {imageEnabled && alertImageToDisplay && (
           <div className="call-image-wrapper">
-            <img src={alert.image_url} alt="Alerta" className="call-alert-image" />
+            <img src={alertImageToDisplay} alt="Alerta de Emergência" className="call-alert-image" />
           </div>
         )}
 
