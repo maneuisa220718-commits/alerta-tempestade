@@ -13,6 +13,13 @@ export default function App() {
   const [activeAlert, setActiveAlert] = useState(null);
   const [alertsHistory, setAlertsHistory] = useState([]);
   
+  // Estado local das preferências personalizadas de alerta do usuário
+  const [userPreferences, setUserPreferences] = useState({
+    soundEnabled: true,
+    vibrationEnabled: true,
+    imageEnabled: true
+  });
+
   const supabaseReady = isSupabaseConfigured();
 
   // Carregar histórico de alertas ao entrar
@@ -31,26 +38,32 @@ export default function App() {
     fetchInitialAlerts();
   }, [supabaseReady]);
 
-  // Listener Realtime GLOBAL de Alertas (Escuta a qualquer momento, independente se currentUser já carregou)
+  // Listener Realtime GLOBAL de Alertas
   useEffect(() => {
     if (!supabaseReady) return;
 
-    console.log('Iniciando Listener Realtime para tabela alerts...');
     const alertsChannel = supabase
       .channel('global_alerts_realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alerts' }, (payload) => {
-        console.log('🚨 NOVO ALERTA RECEBIDO VIA REALTIME:', payload.new);
         const newAlert = payload.new;
         
-        // Ativa a tela de ligação e vibração para o usuário ativo
+        // Notificação Nativa do Sistema Operacional quando o app está em segundo plano / fechado
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification(newAlert.title, {
+              body: newAlert.message,
+              icon: '/favicon.svg',
+              vibrate: userPreferences.vibrationEnabled ? [1000, 500, 1000] : undefined
+            });
+          } catch (e) {}
+        }
+
+        // Ativa a tela de ligação e vibração customizada
         setActiveAlert(newAlert);
         setAlertsHistory((prev) => [newAlert, ...prev]);
       })
-      .subscribe((status) => {
-        console.log('Status da inscrição Realtime Supabase:', status);
-      });
+      .subscribe();
 
-    // Escutar atualizações de status do usuário (aprovação na Sala de Espera)
     const profilesChannel = supabase
       .channel('global_profiles_realtime')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
@@ -65,7 +78,7 @@ export default function App() {
       supabase.removeChannel(alertsChannel);
       supabase.removeChannel(profilesChannel);
     };
-  }, [supabaseReady, currentUser?.id]);
+  }, [supabaseReady, currentUser?.id, userPreferences]);
 
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
@@ -121,14 +134,17 @@ export default function App() {
           activeAlert={activeAlert}
           alertsHistory={alertsHistory}
           onSimulateAlert={handleSimulateAlert}
+          userPreferences={userPreferences}
+          onUpdatePreferences={setUserPreferences}
         />
       )}
 
-      {/* Overlay estilo chamada LOMBROU (Ativado instantaneamente quando activeAlert for preenchido) */}
+      {/* Overlay estilo chamada LOMBROU com suporte a preferências do usuário */}
       {activeAlert && (
         <CallAlertOverlay 
           alert={activeAlert} 
           onClose={() => setActiveAlert(null)} 
+          userPreferences={userPreferences}
         />
       )}
     </div>

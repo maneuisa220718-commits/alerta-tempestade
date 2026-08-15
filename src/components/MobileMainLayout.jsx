@@ -1,10 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Bell, MessageSquare, Send, LogOut, Radio, Shield, Users, Check, X, RefreshCw, AlertTriangle, Zap } from 'lucide-react';
+import { Home, Bell, MessageSquare, Send, LogOut, Radio, Shield, Users, Check, X, RefreshCw, AlertTriangle, Zap, Volume2, Smartphone, Image as ImageIcon, Settings } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
-export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHistory, onSimulateAlert }) {
-  const [activeTab, setActiveTab] = useState('inicio'); // 'inicio' | 'alerta' | 'chat' | 'admin'
-  const [adminSubTab, setAdminSubTab] = useState('alerta'); // 'alerta' | 'pedidos' | 'usuarios'
+export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHistory, onSimulateAlert, userPreferences, onUpdatePreferences }) {
+  const [activeTab, setActiveTab] = useState('inicio');
+  const [adminSubTab, setAdminSubTab] = useState('alerta');
+
+  // Preferências do usuário para Notificações de Alerta
+  const [soundEnabled, setSoundEnabled] = useState(userPreferences?.soundEnabled ?? true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(userPreferences?.vibrationEnabled ?? true);
+  const [imageEnabled, setImageEnabled] = useState(userPreferences?.imageEnabled ?? true);
+  const [pushPermissionStatus, setPushPermissionStatus] = useState('default');
+
+  useEffect(() => {
+    if ('Notification' in window) {
+      setPushPermissionStatus(Notification.permission);
+    }
+  }, []);
+
+  const handleTogglePreference = (key, val) => {
+    const updated = {
+      soundEnabled: key === 'sound' ? val : soundEnabled,
+      vibrationEnabled: key === 'vibration' ? val : vibrationEnabled,
+      imageEnabled: key === 'image' ? val : imageEnabled,
+    };
+    if (key === 'sound') setSoundEnabled(val);
+    if (key === 'vibration') setVibrationEnabled(val);
+    if (key === 'image') setImageEnabled(val);
+
+    if (onUpdatePreferences) {
+      onUpdatePreferences(updated);
+    }
+  };
+
+  const handleRequestPushPermission = async () => {
+    if ('Notification' in window) {
+      const perm = await Notification.requestPermission();
+      setPushPermissionStatus(perm);
+      if (perm === 'granted') {
+        alert('Notificações nativas ativadas! O celular receberá alertas do ADM mesmo com a tela bloqueada ou app em segundo plano.');
+      }
+    }
+  };
 
   // Lista dos 10 Cards Rápidos do ADM
   const ALERT_CARDS = [
@@ -108,7 +145,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     fetchUsersForAdmin();
   };
 
-  // Função ao clicar em um dos 10 CARDS do ADM
   const handleTriggerCardAlert = async (card) => {
     setSendingCardId(card.id);
     const lombrouTitle = `LOMBROU ${card.name}`;
@@ -262,26 +298,106 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 2: ALERTAS */}
+        {/* ABA 2: ALERTAS E CONFIGURAÇÕES PERSONALIZADAS DE NOTIFICAÇÃO */}
         {activeTab === 'alerta' && (
           <div className="tab-alerts">
-            <div className="glass-card">
-              <h3>🚨 Central de Alertas</h3>
-              <p className="sub-text">Notificações de emergência disparadas pelo ADM.</p>
-              
-              <div className="test-alert-section">
-                <h4>Simular Teste no Celular:</h4>
-                <div className="test-buttons-row">
-                  <button className="btn-test btn-test-critical" onClick={() => onSimulateAlert('critical')}>
-                    <Radio size={16} /> Testar Alarme
-                  </button>
+            
+            {/* PAINEL DE CONTROLE DE PREFERÊNCIAS DO USUÁRIO */}
+            <div className="glass-card prefs-card">
+              <h3><Settings size={20} color="#ff3b30" /> Preferências de Notificação</h3>
+              <p className="sub-text">Escolha como você deseja ser notificado quando o ADM disparar um alerta:</p>
+
+              <div className="prefs-switches-list">
+                {/* Permissão Nativa Push Celular Fechado */}
+                <div className="pref-item pref-item-highlight">
+                  <div className="pref-info">
+                    <Bell size={20} color="#007aff" />
+                    <div>
+                      <strong>Notificação com App Fechado</strong>
+                      <p>Receba o alarme no celular mesmo com a tela desligada ou app fechado.</p>
+                    </div>
+                  </div>
+                  {pushPermissionStatus === 'granted' ? (
+                    <span className="badge badge-approved"><Check size={14} /> Ativo</span>
+                  ) : (
+                    <button className="btn-primary btn-sm" onClick={handleRequestPushPermission}>
+                      ATIVAR
+                    </button>
+                  )}
                 </div>
+
+                {/* Opção 1: Som do Alarme */}
+                <div className="pref-item">
+                  <div className="pref-info">
+                    <Volume2 size={20} color="#ff3b30" />
+                    <div>
+                      <strong>Som de Alarme / Sirene</strong>
+                      <p>Tocar efeito sonoro de emergência</p>
+                    </div>
+                  </div>
+                  <label className="toggle-switch">
+                    <input 
+                      type="checkbox" 
+                      checked={soundEnabled} 
+                      onChange={e => handleTogglePreference('sound', e.target.checked)} 
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+
+                {/* Opção 2: Vibração Contínua */}
+                <div className="pref-item">
+                  <div className="pref-info">
+                    <Smartphone size={20} color="#ffcc00" />
+                    <div>
+                      <strong>Vibração do Telefone</strong>
+                      <p>Vibrar o celular continuamente</p>
+                    </div>
+                  </div>
+                  <label className="toggle-switch">
+                    <input 
+                      type="checkbox" 
+                      checked={vibrationEnabled} 
+                      onChange={e => handleTogglePreference('vibration', e.target.checked)} 
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+
+                {/* Opção 3: Imagem do Alerta */}
+                <div className="pref-item">
+                  <div className="pref-info">
+                    <ImageIcon size={20} color="#34c759" />
+                    <div>
+                      <strong>Exibir Imagem do Alerta</strong>
+                      <p>Carregar imagens enviadas pelo ADM</p>
+                    </div>
+                  </div>
+                  <label className="toggle-switch">
+                    <input 
+                      type="checkbox" 
+                      checked={imageEnabled} 
+                      onChange={e => handleTogglePreference('image', e.target.checked)} 
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Botão de Teste Simulação */}
+              <div className="test-alert-section" style={{ marginTop: '1.2rem' }}>
+                <h4>Testar Suas Configurações:</h4>
+                <button className="btn-test btn-test-critical" onClick={() => onSimulateAlert('critical')}>
+                  <Radio size={16} /> Simular Alerta LOMBROU
+                </button>
               </div>
             </div>
 
-            <div className="alerts-feed">
+            {/* HISTÓRICO DE ALERTAS RECEBIDOS */}
+            <div className="alerts-feed" style={{ marginTop: '1rem' }}>
+              <h3>🚨 Histórico de Alertas</h3>
               {alertsHistory.length === 0 ? (
-                <div className="glass-card empty-card">
+                <div className="glass-card empty-card" style={{ marginTop: '0.5rem' }}>
                   <p>Nenhum alerta enviado pelo ADM até o momento.</p>
                 </div>
               ) : (
@@ -292,7 +408,7 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
                       <span>{new Date(a.created_at).toLocaleTimeString()}</span>
                     </div>
                     <p>{a.message}</p>
-                    {a.image_url && <img src={a.image_url} alt="anexo" className="alert-attached-img" />}
+                    {imageEnabled && a.image_url && <img src={a.image_url} alt="anexo" className="alert-attached-img" />}
                   </div>
                 ))
               )}
@@ -334,11 +450,10 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 4 EXCLUSIVA: PAINEL ADMIN COM 10 CARDS DE DISPARO RÁPIDO */}
+        {/* ABA 4 EXCLUSIVA: PAINEL ADMIN */}
         {activeTab === 'admin' && user.role === 'admin' && (
           <div className="tab-admin">
             
-            {/* SUB-MENU DO ADM */}
             <div className="admin-sub-menu">
               <button 
                 className={`admin-sub-btn ${adminSubTab === 'alerta' ? 'active' : ''}`}
@@ -360,7 +475,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
               </button>
             </div>
 
-            {/* SEÇÃO 1: GRID DOS 10 CARDS DE ALERTA RÁPIDO */}
             {adminSubTab === 'alerta' && (
               <div className="glass-card">
                 <div className="card-disparar-header">
@@ -393,7 +507,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
               </div>
             )}
 
-            {/* SEÇÃO 2: PEDIDOS DE ACESSO */}
             {adminSubTab === 'pedidos' && (
               <div className="glass-card">
                 <div className="tab-header-flex">
@@ -429,7 +542,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
               </div>
             )}
 
-            {/* SEÇÃO 3: USUÁRIOS APROVADOS */}
             {adminSubTab === 'usuarios' && (
               <div className="glass-card">
                 <h3>🛡️ Usuários com Acesso Liberado ({approvedUsers.length})</h3>
