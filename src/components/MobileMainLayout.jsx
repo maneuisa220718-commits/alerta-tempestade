@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Bell, MessageSquare, Send, LogOut, Radio, Shield, Users, Check, X, RefreshCw, AlertTriangle, Zap, Volume2, Smartphone, Image as ImageIcon, Settings, Camera } from 'lucide-react';
+import { Home, Bell, MessageSquare, Send, LogOut, Radio, Shield, Users, Check, X, RefreshCw, AlertTriangle, Zap, Volume2, Smartphone, Image as ImageIcon, Settings, Camera, Images, ArrowLeft } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
 export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHistory, onSimulateAlert, userPreferences, onUpdatePreferences }) {
@@ -283,9 +283,8 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
   };
 
 
-  const handleChatFileSelect = (file) => {
+  const handleChatFileValidate = (file, callback) => {
     if (!file) return;
-    setChatFileError('');
     if (file.type.startsWith('video/')) {
       const vid = document.createElement('video');
       vid.preload = 'metadata';
@@ -297,17 +296,32 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
         } else {
           setChatFile(file);
           setChatMediaType('video');
+          setChatFileError('');
+          callback && callback();
         }
       };
       vid.src = URL.createObjectURL(file);
     } else {
       setChatFile(file);
       setChatMediaType('image');
+      setChatFileError('');
+      callback && callback();
     }
   };
 
-  const handleChatCamera = (e) => handleChatFileSelect(e.target.files[0]);
-  const handleChatGallery = (e) => handleChatFileSelect(e.target.files[0]);
+  // Botão Câmera: abre diretamente a câmera do celular
+  const handleChatCameraSelect = (e) => {
+    setChatFileError('');
+    const file = e.target.files[0];
+    handleChatFileValidate(file);
+  };
+
+  // Botão Galeria: abre a galeria de fotos do celular
+  const handleChatGallerySelect = (e) => {
+    setChatFileError('');
+    const file = e.target.files[0];
+    handleChatFileValidate(file);
+  };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -552,24 +566,24 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 3: CHAT EM GRUPO EM TELA CHEIA */}
+        {/* ABA 3: CHAT EM TELA CHEIA (Mensagens expiram em 24h) */}
         {activeTab === 'chat' && (
-          <div className="tab-chat-fullscreen">
-            {/* Header do Chat com seta de voltar */}
+          <div className="chat-fullscreen">
+            {/* Header do Chat com Seta de Voltar */}
             <div className="chat-fullscreen-header">
-              <button className="chat-back-btn" onClick={() => setActiveTab('inicio')}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              <button className="chat-back-btn" onClick={() => setActiveTab('inicio')} title="Voltar">
+                <ArrowLeft size={22} />
               </button>
               <div className="chat-header-info">
-                <div className="chat-header-avatar">G</div>
+                <div className="chat-group-avatar">G</div>
                 <div>
-                  <p className="chat-header-name">Grupo Geral</p>
-                  <p className="chat-header-sub">{messages.filter(m => (Date.now() - new Date(m.created_at).getTime()) < 86400000).length} mensagens · <span style={{color:'#34c759'}}>Ao vivo</span></p>
+                  <span className="chat-group-title">Grupo Geral</span>
+                  <span className="chat-group-subtitle">• Mensagens por 24h</span>
                 </div>
               </div>
             </div>
 
-            {/* Área de mensagens */}
+            {/* Área de Mensagens com scroll */}
             <div className="chat-messages-scroll">
               {messages
                 .filter(m => (Date.now() - new Date(m.created_at).getTime()) < 86400000)
@@ -596,18 +610,18 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
               <div ref={chatEndRef} />
             </div>
 
-            {/* Barra de Input do Chat */}
+            {/* Barra de Envio com Câmera + Galeria Separados */}
             <div className="chat-input-area">
-              {chatFileError && <p style={{ color: '#ff3b30', fontSize: '0.73rem', padding: '0 0.8rem 0.2rem' }}>{chatFileError}</p>}
+              {chatFileError && <p style={{ color: '#ff3b30', fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>{chatFileError}</p>}
               {chatFile && (
-                <p style={{ color: '#60a5fa', fontSize: '0.73rem', padding: '0 0.8rem 0.2rem' }}>
+                <p style={{ color: '#60a5fa', fontSize: '0.73rem', padding: '0 0.5rem 0.2rem' }}>
                   📎 {chatFile.name}
                 </p>
               )}
               <form onSubmit={handleSendMessage} className="chat-input-form">
 
-                {/* Botão Câmera: Abre diretamente a câmera do celular */}
-                <label htmlFor="chat-camera-input" className="chat-camera-btn" title="Tirar foto agora">
+                {/* Botão Câmera (abre câmera do celular) */}
+                <label htmlFor="chat-camera-input" className="chat-icon-btn chat-camera-btn" title="Tirar Foto">
                   <Camera size={20} />
                 </label>
                 <input
@@ -615,19 +629,19 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
                   type="file"
                   accept="image/*,video/*"
                   capture="environment"
-                  onChange={handleChatCamera}
+                  onChange={handleChatCameraSelect}
                   style={{ display: 'none' }}
                 />
 
-                {/* Botão Galeria: Escolher foto/vídeo existente */}
-                <label htmlFor="chat-gallery-input" className="chat-gallery-btn" title="Escolher da galeria">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                {/* Botão Galeria (abre galeria de fotos) */}
+                <label htmlFor="chat-gallery-input" className="chat-icon-btn chat-gallery-btn" title="Escolher da Galeria">
+                  <Images size={20} />
                 </label>
                 <input
                   id="chat-gallery-input"
                   type="file"
                   accept="image/*,video/*"
-                  onChange={handleChatGallery}
+                  onChange={handleChatGallerySelect}
                   style={{ display: 'none' }}
                 />
 
@@ -765,45 +779,45 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
 
       </main>
 
-      {/* MENU DO RODAPé: oculto quando estiver no chat em tela cheia */}
+      {/* MENU NATIVO DO RODÉ - ESCONDIDO NO CHAT */}
       {activeTab !== 'chat' && (
-        <nav className="mobile-bottom-nav">
-          <button 
-            className={`nav-item ${activeTab === 'inicio' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inicio')}
-          >
-            <Home size={20} />
-            <span>Início</span>
-          </button>
+      <nav className="mobile-bottom-nav">
+        <button 
+          className={`nav-item ${activeTab === 'inicio' ? 'active' : ''}`}
+          onClick={() => setActiveTab('inicio')}
+        >
+          <Home size={20} />
+          <span>Início</span>
+        </button>
 
-          <button 
-            className={`nav-item ${activeTab === 'alerta' ? 'active' : ''}`}
-            onClick={() => setActiveTab('alerta')}
-          >
-            <Bell size={20} />
-            <span>Alerta</span>
-            {alertsHistory.length > 0 && <span className="nav-badge-count">{alertsHistory.length}</span>}
-          </button>
+        <button 
+          className={`nav-item ${activeTab === 'alerta' ? 'active' : ''}`}
+          onClick={() => setActiveTab('alerta')}
+        >
+          <Bell size={20} />
+          <span>Alerta</span>
+          {alertsHistory.length > 0 && <span className="nav-badge-count">{alertsHistory.length}</span>}
+        </button>
 
-          <button 
-            className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`}
-            onClick={() => setActiveTab('chat')}
-          >
-            <MessageSquare size={20} />
-            <span>Chat</span>
-          </button>
+        <button 
+          className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`}
+          onClick={() => setActiveTab('chat')}
+        >
+          <MessageSquare size={20} />
+          <span>Chat</span>
+        </button>
 
-          {user.role === 'admin' && (
-            <button 
-              className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
-              onClick={() => setActiveTab('admin')}
-            >
-              <Shield size={20} color="#ff3b30" />
-              <span style={{ color: '#ff3b30' }}>Painel ADM</span>
-              {pendingUsers.length > 0 && <span className="nav-badge-count">{pendingUsers.length}</span>}
-            </button>
-          )}
-        </nav>
+        {user.role === 'admin' && (
+          <button 
+            className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`}
+            onClick={() => setActiveTab('admin')}
+          >
+            <Shield size={20} color="#ff3b30" />
+            <span style={{ color: '#ff3b30' }}>Painel ADM</span>
+            {pendingUsers.length > 0 && <span className="nav-badge-count">{pendingUsers.length}</span>}
+          </button>
+        )}
+      </nav>
       )}
     </div>
   );
