@@ -161,10 +161,12 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
   const [isPosting, setIsPosting] = useState(false);
 
   // Chat State
-  const [messages, setMessages] = useState([
-    { id: 'msg_1', vulgo: 'maneu (ADM)', text: 'Chat da comunidade liberado.', created_at: new Date().toISOString() }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [newMessageText, setNewMessageText] = useState('');
+  const [chatFile, setChatFile] = useState(null);
+  const [chatMediaType, setChatMediaType] = useState('image');
+  const [chatFileError, setChatFileError] = useState('');
+  const chatEndRef = React.useRef(null);
 
   useEffect(() => {
     fetchPosts();
@@ -203,6 +205,13 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
       };
     }
   }, [user]);
+
+  // Auto-scroll para última mensagem do chat
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   const fetchUsersForAdmin = async () => {
     if (!isSupabaseConfigured()) return;
@@ -274,26 +283,71 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
   };
 
 
+  const handleChatFileSelect = (e) => {
+    setChatFileError('');
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.type.startsWith('video/')) {
+      const vid = document.createElement('video');
+      vid.preload = 'metadata';
+      vid.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(vid.src);
+        if (vid.duration > 60) {
+          setChatFileError('⚠️ Vídeo deve ter no máximo 1 minuto.');
+          setChatFile(null);
+        } else {
+          setChatFile(file);
+          setChatMediaType('video');
+        }
+      };
+      vid.src = URL.createObjectURL(file);
+    } else {
+      setChatFile(file);
+      setChatMediaType('image');
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessageText.trim()) return;
+    if (!newMessageText.trim() && !chatFile) return;
+
+    let mediaUrl = null;
+    let mediaType = chatMediaType;
+
+    if (chatFile && isSupabaseConfigured()) {
+      try {
+        const ext = chatFile.name.split('.').pop();
+        const fileName = `chat_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+        const { data: up, error: upErr } = await supabase.storage.from('feed_media').upload(fileName, chatFile);
+        if (!upErr && up) {
+          const { data: urlData } = supabase.storage.from('feed_media').getPublicUrl(fileName);
+          if (urlData) mediaUrl = urlData.publicUrl;
+        }
+      } catch (err) { console.error('Erro upload chat mídia:', err); }
+    }
 
     const msgObj = {
-      id: 'msg_' + Date.now(),
-      user_id: user.id,
       vulgo: user.vulgo || user.name || 'Anônimo',
-      text: newMessageText.trim(),
-      created_at: new Date().toISOString()
+      text: newMessageText.trim() || '',
+      image_url: mediaUrl,
+      media_type: mediaType
     };
+
+    if (user.id && !user.id.startsWith('admin_') && !user.id.startsWith('usr_')) {
+      msgObj.user_id = user.id;
+    }
 
     if (isSupabaseConfigured()) {
       try {
         await supabase.from('messages').insert([msgObj]);
-      } catch (e) {}
+      } catch (err) { console.error('Erro ao enviar mensagem:', err); }
+    } else {
+      setMessages(prev => [...prev, { ...msgObj, id: 'local_' + Date.now(), created_at: new Date().toISOString() }]);
     }
 
-    setMessages([...messages, msgObj]);
     setNewMessageText('');
+    setChatFile(null);
+    setChatFileError('');
   };
 
   return (
@@ -496,36 +550,75 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
           </div>
         )}
 
-        {/* ABA 3: CHAT */}
+        {/* ABA 3: CHAT EM GRUPO (Mensagens expiram em 24h) */}
         {activeTab === 'chat' && (
           <div className="tab-chat">
-            <div className="glass-card chat-box-card">
-              <div className="chat-messages-container">
-                {messages.map((msg) => (
-                  <div 
-                    key={msg.id} 
-                    className={`chat-message-bubble ${msg.vulgo === (user.vulgo || user.name) ? 'my-message' : 'other-message'}`}
-                  >
-                    <span className="chat-sender">@{msg.vulgo}</span>
-                    <p className="chat-text">{msg.text}</p>
-                    <span className="chat-time">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                ))}
+            <div className="chat-group-wrapper">
+              {/* Cabeçalho do Grupo */}
+              <div className="chat-group-header glass-card">
+                <MessageSquare size={18} color="#007aff" />
+                <span>Grupo Geral · <strong style={{color:'#34c759'}}>Mensagens por 24h</strong></span>
               </div>
 
-              <form onSubmit={handleSendMessage} className="chat-input-form">
-                <input 
-                  type="text" 
-                  placeholder="Digite sua mensagem no chat..." 
-                  value={newMessageText}
-                  onChange={e => setNewMessageText(e.target.value)}
-                  className="input-field"
-                  required
-                />
-                <button type="submit" className="btn-primary btn-chat-send">
-                  <Send size={18} />
-                </button>
-              </form>
+              {/* Área de Mensagens com scroll automático */}
+              <div className="chat-messages-scroll">
+                {messages
+                  .filter(m => (Date.now() - new Date(m.created_at).getTime()) < 86400000)
+                  .map((msg, idx) => {
+                    const isMe = msg.vulgo === (user.vulgo || user.name);
+                    return (
+                      <div key={msg.id || idx} className={`chat-bubble-wrapper ${isMe ? 'me' : 'other'}`}>
+                        {!isMe && <span className="chat-bubble-name">@{msg.vulgo}</span>}
+                        <div className={`chat-bubble ${isMe ? 'bubble-me' : 'bubble-other'}`}>
+                          {msg.text && <p className="bubble-text">{msg.text}</p>}
+                          {msg.image_url && (
+                            msg.media_type === 'video'
+                              ? <video src={msg.image_url} controls className="bubble-media" />
+                              : <img src={msg.image_url} alt="mídia" className="bubble-media" />
+                          )}
+                          <span className="bubble-time">
+                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Formulário de Envio com Câmera */}
+              <div className="chat-input-area">
+                {chatFileError && <p style={{ color: '#ff3b30', fontSize: '0.75rem', padding: '0 0.5rem' }}>{chatFileError}</p>}
+                {chatFile && (
+                  <p style={{ color: '#60a5fa', fontSize: '0.75rem', padding: '0 0.5rem' }}>
+                    📎 {chatFile.name}
+                  </p>
+                )}
+                <form onSubmit={handleSendMessage} className="chat-input-form">
+                  {/* Botão Câmera */}
+                  <label htmlFor="chat-media-input" className="chat-camera-btn" title="Enviar foto ou vídeo">
+                    <Camera size={20} />
+                  </label>
+                  <input
+                    id="chat-media-input"
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={handleChatFileSelect}
+                    style={{ display: 'none' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Mensagem para o grupo..."
+                    value={newMessageText}
+                    onChange={e => setNewMessageText(e.target.value)}
+                    className="input-field chat-text-input"
+                  />
+                  <button type="submit" className="btn-primary chat-send-btn">
+                    <Send size={18} />
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         )}
