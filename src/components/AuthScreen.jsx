@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Smartphone, Lock, User, Mail, ArrowRight, UserPlus, LogIn, CheckCircle } from 'lucide-react';
+import { Smartphone, Lock, User, Mail, ArrowRight, UserPlus, LogIn, CheckCircle, Calculator } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
 export default function AuthScreen({ onLoginSuccess }) {
@@ -130,10 +130,10 @@ export default function AuthScreen({ onLoginSuccess }) {
       <div className="glass-card auth-card">
         <div className="auth-brand">
           <div className="brand-icon">
-            <Smartphone size={40} color="#ff3b30" />
+            <Calculator size={40} color="#007aff" />
           </div>
-          <h1>App de Alerta Mobile</h1>
-          <p>Comunidade & Alertas de Emergência</p>
+          <h1>Calculadora Pro</h1>
+          <p>Utilitários & Comunidade</p>
         </div>
 
         {/* Abas Alternadoras: Login / Cadastro */}
