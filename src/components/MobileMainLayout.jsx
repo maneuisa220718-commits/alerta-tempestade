@@ -114,18 +114,19 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     const lombrouTitle = `LOMBROU ${card.name}`;
 
     const newAlert = {
-      id: 'alert_' + Date.now(),
       title: lombrouTitle,
       message: `ATENÇÃO: ALERTA DISPARADO PARA ${card.name}!`,
       urgency: 'critical',
-      sound: 'siren',
-      created_at: new Date().toISOString()
+      sound: 'siren'
     };
 
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('alerts').insert([newAlert]);
-      } catch (e) {}
+        const { error } = await supabase.from('alerts').insert([newAlert]);
+        if (error) console.error('Erro ao enviar alerta:', error);
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     setSendingCardId(null);
