@@ -1,16 +1,95 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Bell, MessageSquare, Send, LogOut, Radio, Shield, Users, Check, X, RefreshCw, AlertTriangle, Zap, Volume2, Smartphone, Image as ImageIcon, Settings } from 'lucide-react';
+import { Home, Bell, MessageSquare, Send, LogOut, Radio, Shield, Users, Check, X, RefreshCw, AlertTriangle, Zap, Volume2, Smartphone, Image as ImageIcon, Settings, Camera } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 
 export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHistory, onSimulateAlert, userPreferences, onUpdatePreferences }) {
   const [activeTab, setActiveTab] = useState('inicio');
   const [adminSubTab, setAdminSubTab] = useState('alerta');
 
+  // Estados de Upload de Mídia (Foto ou Vídeo até 1 minuto)
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [mediaType, setMediaType] = useState('image'); // 'image' | 'video'
+  const [fileError, setFileError] = useState('');
+
   // Preferências do usuário para Notificações de Alerta
   const [soundEnabled, setSoundEnabled] = useState(userPreferences?.soundEnabled ?? true);
   const [vibrationEnabled, setVibrationEnabled] = useState(userPreferences?.vibrationEnabled ?? true);
   const [imageEnabled, setImageEnabled] = useState(userPreferences?.imageEnabled ?? true);
   const [pushPermissionStatus, setPushPermissionStatus] = useState('default');
+
+  const handleFileSelect = (e) => {
+    setFileError('');
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type.startsWith('video/')) {
+      const videoElement = document.createElement('video');
+      videoElement.preload = 'metadata';
+      videoElement.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(videoElement.src);
+        if (videoElement.duration > 60) {
+          setFileError('⚠️ O vídeo deve ter no máximo 1 minuto (60 segundos).');
+          setSelectedFile(null);
+        } else {
+          setSelectedFile(file);
+          setMediaType('video');
+        }
+      };
+      videoElement.src = URL.createObjectURL(file);
+    } else {
+      setSelectedFile(file);
+      setMediaType('image');
+    }
+  };
+
+  const handleCreatePost = async (e) => {
+    e.preventDefault();
+    if (!newPostContent.trim() && !selectedFile) return;
+    setIsPosting(true);
+
+    let mediaUrl = postImageUrl.trim() || null;
+
+    // Se o ADM selecionou um arquivo local (Foto ou Vídeo da câmera/galeria), faz upload para o Supabase Storage
+    if (selectedFile && isSupabaseConfigured()) {
+      try {
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('feed_media')
+          .upload(fileName, selectedFile);
+
+        if (!uploadError && uploadData) {
+          const { data: urlData } = supabase.storage.from('feed_media').getPublicUrl(fileName);
+          if (urlData) mediaUrl = urlData.publicUrl;
+        }
+      } catch (err) {
+        console.error('Erro no upload de mídia:', err);
+      }
+    }
+
+    const postObj = {
+      user_id: user.id,
+      vulgo: user.vulgo || user.name || 'Anônimo',
+      content: newPostContent.trim(),
+      image_url: mediaUrl,
+      media_type: mediaType,
+      created_at: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('posts').insert([postObj]);
+      } catch (e) {
+        console.error('Erro ao salvar post:', e);
+      }
+    }
+
+    setPosts([postObj, ...posts]);
+    setNewPostContent('');
+    setPostImageUrl('');
+    setSelectedFile(null);
+    setIsPosting(false);
+  };
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -187,31 +266,6 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
     } catch (e) {}
   };
 
-  const handleCreatePost = async (e) => {
-    e.preventDefault();
-    if (!newPostContent.trim()) return;
-    setIsPosting(true);
-
-    const postObj = {
-      id: 'post_' + Date.now(),
-      user_id: user.id,
-      vulgo: user.vulgo || user.name || 'Anônimo',
-      content: newPostContent.trim(),
-      image_url: postImageUrl.trim() || null,
-      created_at: new Date().toISOString()
-    };
-
-    if (isSupabaseConfigured()) {
-      try {
-        await supabase.from('posts').insert([postObj]);
-      } catch (e) {}
-    }
-
-    setPosts([postObj, ...posts]);
-    setNewPostContent('');
-    setPostImageUrl('');
-    setIsPosting(false);
-  };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -254,51 +308,71 @@ export default function MobileMainLayout({ user, onLogout, activeAlert, alertsHi
       {/* Conteúdo Principal */}
       <main className="mobile-tab-container">
         
-        {/* ABA 1: INÍCIO (FEED INFORMATIVO DO ADM) */}
+        {/* ABA 1: INÍCIO (FEED INFORMATIVO DO ADM - VÁLIDO POR 24 HORAS) */}
         {activeTab === 'inicio' && (
           <div className="tab-feed">
-            {/* Caixa de Publicação Exclusiva do ADM */}
+            {/* Caixa de Publicação Exclusiva do ADM com Foto/Vídeo */}
             {user.role === 'admin' ? (
               <div className="glass-card post-box-card">
-                <h3>📣 Publicar no Feed (Exclusivo ADM)</h3>
+                <h3>📣 Publicar no Feed (Válido por 24h)</h3>
                 <form onSubmit={handleCreatePost} className="post-form">
                   <textarea 
                     rows="3"
-                    placeholder="Escreva um comunicado para todos os usuários..."
+                    placeholder="Escreva um comunicado..."
                     value={newPostContent}
                     onChange={e => setNewPostContent(e.target.value)}
                     className="input-field textarea-field"
                     required
                   />
-                  <div className="post-form-actions">
+                  
+                  {/* Seletor de Câmera / Arquivo (Fotos ou Vídeos até 60s) */}
+                  <div className="media-selector-area">
+                    <label htmlFor="media-upload-input" className="btn-camera-upload">
+                      <Camera size={18} />
+                      <span>{selectedFile ? selectedFile.name : 'Tirar Foto ou Escolher Vídeo (Máx 1 min)'}</span>
+                    </label>
                     <input 
-                      type="url" 
-                      placeholder="URL da Imagem (opcional)" 
-                      value={postImageUrl} 
-                      onChange={e => setPostImageUrl(e.target.value)}
-                      className="input-field input-sm"
+                      id="media-upload-input"
+                      type="file" 
+                      accept="image/*,video/*"
+                      onChange={handleFileSelect}
+                      style={{ display: 'none' }}
                     />
+                  </div>
+
+                  {fileError && <p className="field-hint" style={{ color: '#ff3b30' }}>{fileError}</p>}
+
+                  <div className="post-form-actions" style={{ justifyContent: 'flex-end', marginTop: '0.4rem' }}>
                     <button type="submit" className="btn-primary btn-sm" disabled={isPosting}>
-                      <Send size={14} /> Publicar
+                      <Send size={14} /> {isPosting ? 'PUBLICANDO...' : 'Publicar'}
                     </button>
                   </div>
                 </form>
               </div>
             ) : (
-              <div className="glass-card post-box-card" style={{ padding: '1rem', textCenter: 'center' }}>
-                <h3 style={{ fontSize: '0.9rem', color: '#9ca3af' }}>📌 Feed Oficial de Comunicados do Administrador</h3>
+              <div className="glass-card post-box-card" style={{ padding: '0.9rem 1rem' }}>
+                <h3 style={{ fontSize: '0.85rem', color: '#9ca3af' }}>📌 Comunicados Oficiais do ADM (Apagados em 24h)</h3>
               </div>
             )}
 
+            {/* LISTA DE POSTS DO FEED (FILTRADOS AUTOMATICAMENTE APENAS OS DAS ÚLTIMAS 24 HORAS) */}
             <div className="feed-posts-list">
-              {posts.map((post) => (
+              {posts.filter(p => (Date.now() - new Date(p.created_at).getTime()) < 86400000).map((post) => (
                 <div key={post.id} className="glass-card post-card">
                   <div className="post-card-header">
                     <span className="post-author">@{post.vulgo}</span>
                     <span className="post-time">{new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <p className="post-content">{post.content}</p>
-                  {post.image_url && <img src={post.image_url} alt="post" className="post-attached-image" />}
+
+                  {/* Renderização condicional: Vídeo ou Imagem */}
+                  {post.image_url && (
+                    post.media_type === 'video' ? (
+                      <video src={post.image_url} controls className="post-attached-video" style={{ width: '100%', borderRadius: '12px', marginTop: '0.5rem', maxHeight: '280px' }} />
+                    ) : (
+                      <img src={post.image_url} alt="post" className="post-attached-image" />
+                    )
+                  )}
                 </div>
               ))}
             </div>

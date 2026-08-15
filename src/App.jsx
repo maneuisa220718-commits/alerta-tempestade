@@ -9,7 +9,12 @@ import { Database } from 'lucide-react';
 import './index.css';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
+  // 1. PERSISTÊNCIA DE LOGIN NO LOCALSTORAGE (O login não sai mais ao atualizar a página)
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem('app_current_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+
   const [activeAlert, setActiveAlert] = useState(null);
   const [alertsHistory, setAlertsHistory] = useState([]);
   
@@ -20,6 +25,15 @@ export default function App() {
   });
 
   const supabaseReady = isSupabaseConfigured();
+
+  // Salva o perfil logado no localStorage sempre que mudar
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('app_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('app_current_user');
+    }
+  }, [currentUser]);
 
   // Carregar histórico de alertas ao entrar
   useEffect(() => {
@@ -37,7 +51,7 @@ export default function App() {
     fetchInitialAlerts();
   }, [supabaseReady]);
 
-  // Listener Realtime GLOBAL de Alertas (Executa tanto em primeiro plano quanto em segundo plano)
+  // Listener Realtime GLOBAL de Alertas
   useEffect(() => {
     if (!supabaseReady) return;
 
@@ -47,30 +61,27 @@ export default function App() {
         const newAlert = payload.new;
         const alertImg = newAlert.image_url || 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=800&auto=format&fit=crop&q=80';
         
-        // 1. DISPARAR NOTIFICAÇÃO NATIVA COMPLETA VIA SERVICE WORKER EM SEGUNDO PLANO (CELULAR FECHADO / SEGUNDO PLANO)
         if ('Notification' in window && Notification.permission === 'granted') {
           try {
             const reg = await navigator.serviceWorker?.getRegistration();
             if (reg && reg.showNotification) {
-              // Dispara pelo Service Worker nativo para garantir imagem e vibração no sistema
               reg.showNotification(newAlert.title || '🚨 LOMBROU ALERTA', {
                 body: newAlert.message || 'ATENÇÃO: ALERTA DE EMERGÊNCIA DISPARADO!',
                 icon: 'https://cdn-icons-png.flaticon.com/512/1011/1011863.png',
                 badge: 'https://cdn-icons-png.flaticon.com/512/1011/1011863.png',
-                image: userPreferences.imageEnabled ? alertImg : undefined, // Imagem no banner da notificação
-                vibrate: userPreferences.vibrationEnabled ? [1000, 300, 1000, 300, 1000, 300, 1000] : undefined, // Vibração nativa
+                image: userPreferences.imageEnabled ? alertImg : undefined,
+                vibrate: userPreferences.vibrationEnabled ? [1000, 300, 1000, 300, 1000, 300, 1000] : undefined,
                 tag: 'lombrou-alert-v3',
                 renotify: true,
                 requireInteraction: true,
                 data: { url: window.location.origin }
               });
             } else {
-              // Fallback para construtor padrão se Service Worker não estiver pronto
               new Notification(newAlert.title || '🚨 LOMBROU ALERTA', {
                 body: newAlert.message,
                 icon: 'https://cdn-icons-png.flaticon.com/512/1011/1011863.png',
                 image: userPreferences.imageEnabled ? alertImg : undefined,
-                vibrate: userPreferences.vibrationEnabled ? [1000, 300, 1000, 300, 1000] : undefined
+                vibrate: userPreferences.vibrationEnabled ? [1000, 300, 1000, 300, 1000, 300, 1000] : undefined
               });
             }
           } catch (e) {
@@ -78,7 +89,6 @@ export default function App() {
           }
         }
 
-        // 2. DISPARAR OVERLAY INTERNO COM SOM E VIBRAÇÃO DO NAVEGADOR
         setActiveAlert(newAlert);
         setAlertsHistory((prev) => [newAlert, ...prev]);
       })
@@ -107,6 +117,7 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setActiveAlert(null);
+    localStorage.removeItem('app_current_user');
   };
 
   const handleSimulateAlert = (urgencyType = 'critical') => {
@@ -133,10 +144,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Botão e Banner de Instalação PWA no Celular */}
       <PWAInstallPrompt />
 
-      {/* ROTEAMENTO UNIFICADO MOBILE */}
       {!currentUser ? (
         <AuthScreen onLoginSuccess={handleLoginSuccess} />
       ) : currentUser.status === 'pendente' && currentUser.role !== 'admin' ? (
@@ -159,7 +168,6 @@ export default function App() {
         />
       )}
 
-      {/* Overlay estilo chamada LOMBROU */}
       {activeAlert && (
         <CallAlertOverlay 
           alert={activeAlert} 
